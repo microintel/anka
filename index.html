@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REDUNDANT — Academic Vault</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ MASTHEAD ══ -->
+  <header class="masthead">
+    <div class="masthead-left">
+      <div>
+        <div class="logo-mark" onclick="showSection('dashboard')">REDUNDANT</div>
+        <div class="logo-sub">Academic Vault · Est. ∞</div>
+      </div>
+    </div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-section="dashboard" onclick="showSection('dashboard')">
+        ◈ Overview
+      </button>
+      <button class="nav-tab" data-section="sslc" onclick="showSection('sslc')">
+        SSLC
+      </button>
+      <button class="nav-tab" data-section="diploma" onclick="showSection('diploma')">
+        Diploma
+      </button>
+      <button class="nav-tab" data-section="engineering" onclick="showSection('engineering')">
+        Engineering
+      </button>
+      <button class="nav-tab" data-section="charts" onclick="showSection('charts')">
+        ▸ Charts
+      </button>
+    </nav>
+    <div class="nav-actions">
+      <button class="btn btn-ghost btn-sm" onclick="showUserProfile()">👤 Profile</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportJSON()">⤓ Export</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()">⤒ Import</button>
+      <input type="file" id="importFile" accept=".json" onchange="importJSON(event)">
+      <button class="btn btn-amber btn-sm" onclick="generatePDFReport()">⎙ Report</button>
+    </div>
+  </header>
+
+  <!-- ══ MAIN ══ -->
+  <main class="main">
+
+    <!-- ── DASHBOARD ── -->
+    <section class="section active" id="section-dashboard">
+      <div class="dash-header">
+        <div class="dash-title">Your Academic <span>Record.</span></div>
+        <div class="deco-line"></div>
+        <div class="dash-subtitle">All stages · All marks · Nothing lost</div>
+      </div>
+
+      <div class="stage-grid" id="dash-stage-cards">
+        <!-- filled by JS -->
+      </div>
+
+      <div class="dash-stats" id="dash-stats">
+        <!-- filled by JS -->
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-title">Overall Progress — Across Stages</div>
+          <div class="chart-wrap"><canvas id="chartOverall"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Best vs Weakest — All Subjects</div>
+          <div class="chart-wrap"><canvas id="chartBestWorst"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SSLC ── -->
+    <section class="section" id="section-sslc">
+      <div class="stage-header">
+        <div>
+          <div class="stage-title">SSLC — <em>10th Standard</em></div>
+          <div style="font-family:var(--font-mono);font-size:0.62rem;color:var(--text-secondary);margin-top:0.25rem;" id="sslc-summary"></div>
+        </div>
+        <button class="btn btn-solid" onclick="openAddSubjectModal('sslc',null)">+ Add Subject</button>
+      </div>
+
+      <div class="sslc-table-wrap">
+        <table class="subject-table">
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th>Internals</th>
+              <th>External</th>
+              <th>Total</th>
+              <th>%</th>
+              <th>Grade</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sslc-tbody"></tbody>
+        </table>
+      </div>
+
+      <div id="sslc-empty" class="empty-state" style="display:none;margin-top:1rem;">
+        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-text">No subjects recorded yet.</div>
+        <div class="empty-state-sub">Add your SSLC marks to begin</div>
+      </div>
+
+      <div style="margin-top:1.5rem;" id="sslc-chart-wrap">
+        <div class="chart-card">
+          <div class="chart-title">Subject-wise Performance</div>
+          <div class="chart-wrap"><canvas id="chartSSLC"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── DIPLOMA ── -->
+    <section class="section" id="section-diploma">
+      <div class="stage-header">
+        <div>
+          <div class="stage-title">Diploma — <em>Polytechnic</em></div>
+          <div style="font-family:var(--font-mono);font-size:0.62rem;color:var(--text-secondary);margin-top:0.25rem;" id="diploma-summary"></div>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-ghost" onclick="addSemester('diploma')">+ Add Semester</button>
+          <button class="btn btn-solid" onclick="openAddSubjectModal('diploma',null)">+ Add Subject</button>
+        </div>
+      </div>
+      <div id="diploma-semesters"></div>
+    </section>
+
+    <!-- ── ENGINEERING ── -->
+    <section class="section" id="section-engineering">
+      <div class="stage-header">
+        <div>
+          <div class="stage-title">Engineering — <em>B.E / B.Tech</em></div>
+          <div style="font-family:var(--font-mono);font-size:0.62rem;color:var(--text-secondary);margin-top:0.25rem;" id="engineering-summary"></div>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="btn btn-ghost" onclick="addSemester('engineering')">+ Add Semester</button>
+          <button class="btn btn-solid" onclick="openAddSubjectModal('engineering',null)">+ Add Subject</button>
+        </div>
+      </div>
+      <div id="engineering-semesters"></div>
+    </section>
+
+    <!-- ── CHARTS ── -->
+    <section class="section" id="section-charts">
+      <div class="dash-header">
+        <div class="dash-title">Analytics & <span>Trends</span></div>
+        <div class="dash-subtitle">Visual breakdown of your academic journey</div>
+      </div>
+
+      <!-- Row 1: Diploma + Engineering semester bars -->
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-title">Semester-wise Average % — Diploma</div>
+          <div class="chart-wrap" style="height:220px;"><canvas id="chartDipSem"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Semester-wise Average % — Engineering</div>
+          <div class="chart-wrap" style="height:220px;"><canvas id="chartEngSem"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Row 2: Grade distribution pie + Stage comparison bar -->
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-title">Grade Distribution — All Subjects</div>
+          <div class="chart-wrap" style="height:260px;"><canvas id="chartGradePie"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Stage Comparison</div>
+          <div class="chart-wrap" style="height:260px;"><canvas id="chartStageComp"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Row 3: SSLC subject bars + SSLC radar -->
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-title">SSLC Subject-wise Marks %</div>
+          <div class="chart-wrap" style="height:260px;"><canvas id="chartSSLCBar"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">SSLC Subject Radar</div>
+          <div class="chart-wrap" style="height:260px;"><canvas id="chartSSLCRadar"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Row 4: Pass/Fail pie + top-subjects horizontal bar -->
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-title">Pass vs Fail — All Subjects</div>
+          <div class="chart-wrap" style="height:240px;"><canvas id="chartPassFail"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Top 8 Subjects by %</div>
+          <div class="chart-wrap" style="height:240px;"><canvas id="chartTop8"></canvas></div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<!-- ══ MODAL OVERLAY ══ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOnOverlay(event)">
+  <div class="modal" id="modalBox">
+    <div class="modal-title" id="modalTitle">Add Subject</div>
+    <div id="modalBody"></div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<!-- ══ USER PROFILE MODAL ══ -->
+<div class="modal-overlay" id="profileOverlay" onclick="closeProfileModal(event)">
+  <div class="modal profile-modal" id="profileBox">
+    <div class="modal-title">👤 Your Profile & Dashboard</div>
+    
+    <div class="edit-toggle" id="editToggle">
+      <button class="btn btn-amber btn-sm" onclick="toggleProfileEdit(true)" id="editBtn">✎ Edit Profile</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleProfileEdit(false)" id="doneBtn" style="display:none;">✓ Done Editing</button>
+    </div>
+
+    <!-- View Mode -->
+    <div class="profile-view" id="profileView">
+      <div class="profile-section">
+        <div class="profile-header">
+          <div class="profile-avatar" id="profileAvatar">U</div>
+          <div class="profile-info">
+            <h3 id="profileName">User Name</h3>
+            <p id="profileEmail">user@example.com</p>
+            <p id="profileDate" style="color: var(--green); margin-top: 0.4rem;">Profile Created Today</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 1.5rem;">
+        <div style="font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--text-secondary); margin-bottom: 0.75rem;">📊 Academic Statistics</div>
+        <div class="stats-grid">
+          <div class="stat-mini">
+            <div class="stat-mini-value" id="statSSLC">-</div>
+            <div class="stat-mini-label">SSLC Subjects</div>
+          </div>
+          <div class="stat-mini">
+            <div class="stat-mini-value" id="statDiploma">-</div>
+            <div class="stat-mini-label">Diploma Subjects</div>
+          </div>
+          <div class="stat-mini">
+            <div class="stat-mini-value" id="statEngineering">-</div>
+            <div class="stat-mini-label">Engineering Subjects</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="developer-credit">
+        🔧 Developed by <strong>Microintel</strong>
+      </div>
+
+      <div style="margin-bottom: 1rem;"></div>
+
+      <div class="profile-section">
+        <div style="font-family: var(--font-mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.15em; color: var(--green); margin-bottom: 0.75rem;">ℹ️ Application Info</div>
+        <div style="font-family: var(--font-body); font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5;">
+          <p style="margin-bottom: 0.5rem;"><strong>App:</strong> REDUNDANT — Academic Vault</p>
+          <p style="margin-bottom: 0.5rem;"><strong>Version:</strong> 1.0.0</p>
+          <p style="margin-bottom: 0.5rem;"><strong>Purpose:</strong> Complete academic record management</p>
+          <p style="color: var(--green); margin-top: 0.75rem;"><strong>© 2026 Microintel</strong></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Mode -->
+    <div class="profile-edit-form" id="profileEditForm">
+      <div class="profile-section">
+        <div style="text-align: center; margin-bottom: 1.5rem;">
+          <div id="photoPreviewContainer">
+            <img id="photoPreview" class="photo-preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23c8922a' opacity='0.2'/%3E%3Ctext x='50' y='55' font-size='40' text-anchor='middle' fill='%23c8922a'%3EU%3C/text%3E%3C/svg%3E" alt="profile">
+          </div>
+          <button class="photo-upload-btn" onclick="document.getElementById('profilePhotoInput').click()">
+            📷 Upload Photo
+          </button>
+          <input type="file" id="profilePhotoInput" accept="image/*" onchange="handlePhotoUpload(event)">
+        </div>
+
+        <div class="edit-form-field">
+          <label class="edit-form-label">Full Name</label>
+          <input type="text" id="editNameInput" class="edit-form-input" placeholder="Enter your name">
+        </div>
+
+        <div class="edit-form-field">
+          <label class="edit-form-label">Email Address</label>
+          <input type="email" id="editEmailInput" class="edit-form-input" placeholder="Enter your email">
+        </div>
+      </div>
+
+      <div class="developer-credit" style="margin: 1rem 0;">
+        🔧 Developed by <strong>Microintel</strong>
+      </div>
+    </div>
+
+    <div class="modal-footer" id="profileFooter">
+      <button class="btn btn-solid" id="pdfBtnView" onclick="generatePDFReport()">📄 Generate PDF Report</button>
+      <button class="btn btn-ghost" onclick="closeProfileModal()">Close</button>
+    </div>
+
+    <div class="modal-footer" id="profileEditFooter" style="display:none;">
+      <button class="btn btn-solid" onclick="saveProfileChanges()">💾 Save Changes</button>
+      <button class="btn btn-ghost" onclick="toggleProfileEdit(false)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST STACK ══ -->
+<div class="toast-stack" id="toastStack"></div>
+
+<!-- PDF Generation Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<script src="state.js"></script>
+<script src="navigation.js"></script>
+<script src="calculations.js"></script>
+<script src="dashboard.js"></script>
+<script src="sslc.js"></script>
+<script src="stages.js"></script>
+<script src="subject-modals.js"></script>
+<script src="semesters.js"></script>
+<script src="delete-subject.js"></script>
+<script src="modal-helpers.js"></script>
+<script src="charts.js"></script>
+<script src="export-import.js"></script>
+<script src="toast.js"></script>
+<script src="utils.js"></script>
+<script src="profile.js"></script>
+<script src="pdf-report.js"></script>
