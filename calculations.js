@@ -22,19 +22,30 @@ function pctClass(p) {
   return 'pct-low';
 }
 
+// Normalizes subj.internal into an array of components.
+// Supports the new array form ([{name,min,max,obtained}, ...]) as well as
+// the legacy single-object form ({min,max,obtained}) for old saved data.
+function internalComponents(subj) {
+  const i = subj?.internal;
+  if (Array.isArray(i)) return i;
+  if (i && ((+i.max) || (+i.obtained) || (+i.min))) return [{ name: 'Internal', ...i }];
+  return [];
+}
+
 // Totals for one subject (internal + external)
 function calcSubjectTotal(subj) {
-  const i = subj.internal || { min: 0, max: 0, obtained: 0 };
+  const comps = internalComponents(subj);
+  const intObtained = comps.reduce((s, c) => s + (+c.obtained || 0), 0);
+  const intMax = comps.reduce((s, c) => s + (+c.max || 0), 0);
+  const intMin = comps.reduce((s, c) => s + (+c.min || 0), 0);
   const e = subj.external || { min: 0, max: 0, obtained: 0 };
-  const intObtained = +i.obtained || 0;
-  const intMax = +i.max || 0;
   const extObtained = +e.obtained || 0;
   const extMax = +e.max || 0;
   return {
     scored: intObtained + extObtained,
     max: intMax + extMax,
     intObtained, intMax, extObtained, extMax,
-    intMin: +i.min || 0, extMin: +e.min || 0,
+    intMin, extMin: +e.min || 0,
   };
 }
 

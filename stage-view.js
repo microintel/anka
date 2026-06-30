@@ -71,6 +71,12 @@ function marksCell(label, m) {
   return `<div class="comp-pill"><span class="comp-pill-name">${label}${min ? ` (min ${min})` : ''}</span><span class="comp-pill-score" style="${below ? 'color:var(--red);' : ''}">${ob}/${max}</span></div>`;
 }
 
+function internalCell(subj) {
+  const comps = internalComponents(subj);
+  if (!comps.length) return `<span style="color:var(--text-dim);font-size:0.72rem;">—</span>`;
+  return comps.map(c => marksCell(c.name || 'Internal', c)).join('');
+}
+
 function subjectTable(stage, termIdForAdd, subs) {
   const rows = subs.map(s => {
     const t = calcSubjectTotal(s);
@@ -82,7 +88,7 @@ function subjectTable(stage, termIdForAdd, subs) {
         ${escHtml(s.name)}
         <div style="margin-top:0.25rem;"><span class="exam-badge ${typeCls}">${s.subjectType}</span></div>
       </td>
-      <td data-label="Internal">${marksCell('Internal', s.internal || {})}</td>
+      <td data-label="Internal">${internalCell(s)}</td>
       <td data-label="External">${marksCell('External', s.external || {})}</td>
       <td data-label="Total" class="marks-badge" style="white-space:nowrap;">${t.scored}/${t.max}</td>
       <td data-label="%"><span class="pct-badge ${pctClass(p)}">${p}%</span></td>

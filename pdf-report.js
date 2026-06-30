@@ -1,161 +1,299 @@
 // ══════════════════════════════════════════════════
-//  PDF REPORT — full report incl. profile, stage order,
-//  subject tables and every chart in the app
+//  PDF REPORT — built natively with jsPDF + autoTable
+//  (real vector text/tables drawn into the PDF — not an
+//  HTML screenshot — so it stays crisp, small and selectable)
 // ══════════════════════════════════════════════════
+
+const PDF_COLORS = {
+  ink:    [26, 28, 32],
+  dim:    [110, 116, 124],
+  faint:  [150, 155, 162],
+  rule:   [226, 228, 232],
+  panel:  [247, 248, 246],
+  dark:   [22, 24, 28],
+  accent: [34, 153, 84],   // green — matches app accent
+  gold:   [200, 146, 42],
+  high:   [34, 153, 84],
+  mid:    [201, 153, 22],
+  low:    [196, 64, 64],
+};
+
+function gradeColorPdf(p) {
+  if (p >= 70) return PDF_COLORS.high;
+  if (p >= 50) return PDF_COLORS.mid;
+  return PDF_COLORS.low;
+}
+
 async function generatePDFReport() {
   if (!state.stages.length) { toast('Add a stage with subjects first'); return; }
+  if (typeof window.jspdf === 'undefined') { toast('PDF library failed to load'); return; }
 
-  toast('Generating full report…');
+  toast('Generating report…');
 
-  // Make sure every chart in the app has been rendered at least once
-  // so its canvas has pixel data we can export as an image.
-  if (typeof renderDashCharts === 'function') renderDashCharts();
-  if (typeof renderStatsPage === 'function') renderStatsPage();
-  if (typeof renderCharts === 'function') renderCharts();
-  await new Promise(r => setTimeout(r, 350)); // let Chart.js finish painting
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const PW = doc.internal.pageSize.getWidth();
+  const PH = doc.internal.pageSize.getHeight();
+  const MX = 14;          // left/right margin
+  const TOP = 16;         // top safe area below header band
+  const BOTTOM = PH - 16; // bottom safe area above footer
 
-  const now = new Date().toLocaleString('en-IN');
   const overallPct = state.subjects.length
     ? stageAvg(state.subjects.filter(s => s.subjectType !== 'audit'))
     : 0;
+  const now = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
-  // ── Profile summary ──
-  const profileHtml = `
-    <div style="display:flex;align-items:center;gap:16px;border:1px solid #e6dfc8;border-radius:8px;padding:14px 18px;margin-bottom:18px;background:#faf7ee;">
-      <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#3a5a7a,#c8922a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:700;flex-shrink:0;">${escHtml((userProfile.name || 'U')[0].toUpperCase())}</div>
-      <div style="flex:1;">
-        <div style="font-size:1rem;font-weight:700;">${escHtml(userProfile.name || 'User')}</div>
-        <div style="font-size:0.75rem;color:#666;">${escHtml(userProfile.email || '')} · Member since ${escHtml(userProfile.createdDate || '')}</div>
-      </div>
-      <div style="display:flex;gap:14px;text-align:center;">
-        <div><div style="font-size:1.1rem;font-weight:700;color:#3a5a7a;">${state.stages.length}</div><div style="font-size:0.6rem;color:#888;text-transform:uppercase;">Stages</div></div>
-        <div><div style="font-size:1.1rem;font-weight:700;color:#3a5a7a;">${state.subjects.length}</div><div style="font-size:0.6rem;color:#888;text-transform:uppercase;">Subjects</div></div>
-        <div><div style="font-size:1.1rem;font-weight:700;color:#c8922a;">${overallPct}%</div><div style="font-size:0.6rem;color:#888;text-transform:uppercase;">Overall</div></div>
-      </div>
-    </div>`;
+  // ── small drawing helpers ──────────────────────────
+  function setColor(c) { doc.setTextColor(c[0], c[1], c[2]); }
+  function setFill(c) { doc.setFillColor(c[0], c[1], c[2]); }
+  function setDraw(c) { doc.setDrawColor(c[0], c[1], c[2]); }
 
-  // ── Stage order ──
-  const orderHtml = `
-    <h2 style="margin-top:8px;border-bottom:2px solid #c8922a;padding-bottom:4px;">Stage Order</h2>
-    <ol style="margin:8px 0 4px 22px;font-size:12.5px;">
-      ${state.stages.map(s => `<li style="margin-bottom:3px;">${escHtml(stageLabel(s))} — ${stageAvg(stageSubjects(s.id))}%</li>`).join('')}
-    </ol>`;
+  function pageHeader(title, sub) {
+    setFill(PDF_COLORS.dark);
+    doc.rect(0, 0, PW, 22, 'F');
+    setFill(PDF_COLORS.accent);
+    doc.rect(0, 22, PW, 1, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    setColor([255, 255, 255]);
+    doc.text(title, MX, 13);
+    if (sub) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      setColor([195, 200, 205]);
+      doc.text(sub, MX, 18.5);
+    }
+  }
 
-  // ── Per-stage subject tables ──
-  let stagesHtml = '';
+  function footer(pageNum, pageCount) {
+    setDraw(PDF_COLORS.rule);
+    doc.setLineWidth(0.2);
+    doc.line(MX, PH - 12, PW - MX, PH - 12);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    setColor(PDF_COLORS.faint);
+    doc.text('Developed by Microintel', MX, PH - 7);
+    doc.text(`Page ${pageNum} of ${pageCount}`, PW - MX, PH - 7, { align: 'right' });
+  }
+
+  function sectionTitle(y, text, accentColor = PDF_COLORS.accent) {
+    setFill(accentColor);
+    doc.rect(MX, y - 3.6, 2, 5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11.5);
+    setColor(PDF_COLORS.ink);
+    doc.text(text, MX + 5, y);
+    return y + 4;
+  }
+
+  function ensureSpace(y, needed) {
+    if (y + needed > BOTTOM) {
+      doc.addPage();
+      pageHeader('Anka', `Academic Report · Generated ${now}`);
+      return TOP + 14;
+    }
+    return y;
+  }
+
+  // ── PAGE 1 : Cover / Profile ───────────────────────
+  pageHeader('Anka', `Academic Report · Generated ${now}`);
+  let y = TOP + 16;
+
+  // profile panel
+  const panelH = 26;
+  setFill(PDF_COLORS.panel);
+  setDraw(PDF_COLORS.rule);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(MX, y, PW - MX * 2, panelH, 2, 2, 'FD');
+
+  // avatar circle
+  const cx = MX + 13, cy = y + panelH / 2, r = 9;
+  setFill(PDF_COLORS.accent);
+  doc.circle(cx, cy, r, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  setColor([255, 255, 255]);
+  doc.text(((userProfile.name || 'U')[0] || 'U').toUpperCase(), cx, cy + 1.4, { align: 'center' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  setColor(PDF_COLORS.ink);
+  doc.text(userProfile.name || 'User', MX + 27, y + 10);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  setColor(PDF_COLORS.dim);
+  doc.text(`${userProfile.email || ''}${userProfile.createdDate ? ' · Member since ' + userProfile.createdDate : ''}`, MX + 27, y + 16);
+
+  // stat boxes on the right of the panel
+  const stats = [
+    { label: 'STAGES', value: String(state.stages.length), color: PDF_COLORS.ink },
+    { label: 'SUBJECTS', value: String(state.subjects.length), color: PDF_COLORS.ink },
+    { label: 'OVERALL', value: overallPct + '%', color: PDF_COLORS.accent },
+  ];
+  const statW = 26;
+  let sx = PW - MX - statW * stats.length;
+  stats.forEach(st => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    setColor(st.color);
+    doc.text(st.value, sx + statW / 2, y + 12, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.6);
+    setColor(PDF_COLORS.faint);
+    doc.text(st.label, sx + statW / 2, y + 18, { align: 'center' });
+    sx += statW;
+  });
+
+  y += panelH + 12;
+
+  // ── Stage Order overview table ──
+  y = sectionTitle(y, 'Stage Order & Summary');
+  const orderRows = state.stages.map((s, i) => {
+    const subs = stageSubjects(s.id);
+    const avg = stageAvg(subs);
+    return [String(i + 1), stageLabel(s), s.mode === 'annual' ? 'Annual' : 'Semester-wise', String(subs.length), avg + '%'];
+  });
+  doc.autoTable({
+    startY: y,
+    margin: { left: MX, right: MX },
+    head: [['#', 'Stage', 'Mode', 'Subjects', 'Avg %']],
+    body: orderRows,
+    theme: 'plain',
+    styles: { font: 'helvetica', fontSize: 8.8, textColor: PDF_COLORS.ink, cellPadding: { top: 2.2, bottom: 2.2, left: 2, right: 2 } },
+    headStyles: { fillColor: PDF_COLORS.dark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    alternateRowStyles: { fillColor: PDF_COLORS.panel },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      3: { cellWidth: 22, halign: 'center' },
+      4: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 4) {
+        const p = parseFloat(data.cell.text[0]);
+        data.cell.styles.textColor = gradeColorPdf(p);
+      }
+    },
+  });
+  y = doc.lastAutoTable.finalY + 10;
+
+  // ── PER-STAGE DETAIL ────────────────────────────────
   state.stages.forEach((stage, idx) => {
     const subs = stageSubjects(stage.id);
     if (!subs.length) return;
     const avg = stageAvg(subs);
 
-    let body = '';
-    if (stage.mode === 'annual') {
-      body = subjectRowsHtml(subs);
-    } else {
-      body = stage.terms.map(term => {
-        const tSubs = termSubjects(stage.id, term.id);
-        if (!tSubs.length) return '';
-        return `<h4 style="margin:14px 0 6px;color:#c8922a;">${escHtml(term.label)} — ${termAvg(stage.id, term.id)}%</h4>${subjectRowsHtml(tSubs)}`;
-      }).join('');
-    }
+    y = ensureSpace(y, 24);
+    y = sectionTitle(y, `${idx + 1}. ${stageLabel(stage)}  —  ${stage.mode === 'annual' ? 'Annual' : 'Semester-wise'}  ·  ${avg}% overall`);
 
-    stagesHtml += `
-      <h2 style="margin-top:28px;border-bottom:2px solid #c8922a;padding-bottom:4px;">
-        ${idx + 1}. ${escHtml(stageLabel(stage))} (${stage.mode === 'annual' ? 'Annual' : 'Semester-wise'}) — ${avg}%
-      </h2>
-      ${body}`;
+    const groups = stage.mode === 'annual'
+      ? [{ label: null, subs: termSubjects(stage.id, stage.terms[0]?.id) }]
+      : stage.terms.map(t => ({ label: t.label, avg: termAvg(stage.id, t.id), subs: termSubjects(stage.id, t.id) })).filter(g => g.subs.length);
+
+    groups.forEach(g => {
+      if (g.label) {
+        y = ensureSpace(y, 10);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        setColor(PDF_COLORS.gold);
+        doc.text(`${g.label} — ${g.avg}%`, MX, y);
+        y += 4;
+      }
+      y = drawSubjectTable(doc, g.subs, y, MX, PW);
+      y += 6;
+
+      // internal-component breakdown for every subject that has them
+      const breakdown = [];
+      g.subs.forEach(s => {
+        const comps = internalComponents(s);
+        comps.forEach((c, ci) => breakdown.push([
+          ci === 0 ? s.name : '',
+          c.name || 'Internal',
+          String(+c.min || 0), String(+c.max || 0), String(+c.obtained || 0),
+        ]));
+      });
+      if (breakdown.length) {
+        y = ensureSpace(y, 14);
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        setColor(PDF_COLORS.dim);
+        doc.text('Internal Marks Breakdown', MX, y);
+        y += 2;
+        doc.autoTable({
+          startY: y,
+          margin: { left: MX, right: MX },
+          head: [['Subject', 'Component', 'Min', 'Max', 'Obtained']],
+          body: breakdown,
+          theme: 'plain',
+          styles: { font: 'helvetica', fontSize: 7.8, textColor: PDF_COLORS.dim, cellPadding: 1.6 },
+          headStyles: { fillColor: PDF_COLORS.panel, textColor: PDF_COLORS.ink, fontStyle: 'bold', fontSize: 7.5 },
+          columnStyles: { 0: { fontStyle: 'bold', textColor: PDF_COLORS.ink }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+          didDrawCell: (data) => {
+            if (data.section === 'body' && data.column.index === 0 && data.cell.raw) {
+              setDraw(PDF_COLORS.rule);
+              doc.setLineWidth(0.15);
+              doc.line(MX, data.cell.y, MX + (PW - MX * 2), data.cell.y);
+            }
+          },
+        });
+        y = doc.lastAutoTable.finalY + 8;
+      }
+    });
   });
 
-  // ── Charts gallery (every chart currently in the app) ──
-  const chartBlock = (id, title) => {
-    const inst = chartInstances[id];
-    if (!inst) return '';
-    let img;
-    try { img = inst.toBase64Image(); } catch (e) { return ''; }
-    return `
-      <div style="break-inside:avoid;margin-bottom:16px;">
-        <div style="font-size:0.78rem;font-weight:600;color:#444;margin-bottom:4px;">${escHtml(title)}</div>
-        <img src="${img}" style="width:100%;max-width:320px;border:1px solid #e6e2d6;border-radius:6px;background:#fff;">
-      </div>`;
-  };
-
-  const chartCells = [
-    chartBlock('chartDashPie', 'Grade Distribution — All Subjects'),
-    chartBlock('chartStageComp', 'Average % by Stage'),
-    chartBlock('chartTermAvg', 'Semester-wise Average %'),
-    chartBlock('chartGradePie', 'Grade Distribution'),
-    chartBlock('chartPassFail', 'Pass vs Fail'),
-    chartBlock('chartTop8', 'Top 8 Subjects by %'),
-    chartBlock('chartAllStagesBar', 'All Stages — Comparison'),
-    chartBlock('chartAllStagesGrowth', 'All Stages — Growth Trend'),
-    chartBlock('chartStatsAllPie', 'All Stages — Share of Average %'),
-    ...state.stages.map(s => chartBlock(`chartLine-${s.id}`, `${stageLabel(s)} — Term Growth`)),
-    ...state.stages.map(s => chartBlock(`chartBar-${s.id}`, `${stageLabel(s)} — Subject %`)),
-  ].filter(Boolean).join('');
-
-  const chartsHtml = chartCells ? `
-    <h2 style="margin-top:30px;border-bottom:2px solid #c8922a;padding-bottom:4px;page-break-before:always;">Visual Analytics</h2>
-    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;">${chartCells}</div>` : '';
-
-  const html = `
-  <div style="font-family:Arial,sans-serif;color:#222;padding:24px;">
-    <h1 style="text-align:center;margin-bottom:0;">Academic Report</h1>
-    <p style="text-align:center;color:#666;margin-top:4px;margin-bottom:18px;">Generated ${now}</p>
-    ${profileHtml}
-    ${orderHtml}
-    ${stagesHtml || '<p>No subjects recorded yet.</p>'}
-    ${chartsHtml}
-    <p style="margin-top:30px;font-size:11px;color:#888;text-align:center;">Developed by Microintel</p>
-  </div>`;
-
-  const container = document.createElement('div');
-  container.style.width = '780px';
-  container.innerHTML = html;
-  document.body.appendChild(container);
-
-  try {
-    await html2pdf().set({
-      margin: 10,
-      filename: `academic_report_${Date.now()}.pdf`,
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'] },
-    }).from(container).save();
-    toast('✓ Full PDF report generated');
-  } catch (err) {
-    toast('Failed to generate PDF');
-  } finally {
-    container.remove();
+  // ── footers on every page ──
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    footer(p, pageCount);
   }
+
+  doc.save(`academic_report_${Date.now()}.pdf`);
+  toast('✓ Report generated');
 }
 
-function subjectRowsHtml(subs) {
+// Draws a styled subject table at (x, y) and returns the new y position.
+function drawSubjectTable(doc, subs, y, MX, PW) {
   const rows = subs.map(s => {
     const t = calcSubjectTotal(s);
     const p = pct(t.scored, t.max);
-    return `<tr>
-      <td style="padding:4px 8px;border:1px solid #ddd;">${escHtml(s.name)}</td>
-      <td style="padding:4px 8px;border:1px solid #ddd;text-transform:capitalize;">${s.subjectType}</td>
-      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${t.intObtained}/${t.intMax}</td>
-      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${t.extObtained}/${t.extMax}</td>
-      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${t.scored}/${t.max}</td>
-      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${p}%</td>
-      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${grade(p)}</td>
-    </tr>`;
-  }).join('');
+    const passed = subjectPass(s);
+    const result = s.subjectType === 'audit'
+      ? (passed ? 'Satisfactory' : 'Not Satisfactory')
+      : `${grade(p)}${passed ? '' : ' · Fail'}`;
+    return {
+      cells: [s.name, s.subjectType, `${t.intObtained}/${t.intMax}`, `${t.extObtained}/${t.extMax}`, `${t.scored}/${t.max}`, p + '%', result],
+      pct: p, passed,
+    };
+  });
 
-  return `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">
-    <thead>
-      <tr style="background:#f5f0e6;">
-        <th style="padding:4px 8px;border:1px solid #ddd;">Subject</th>
-        <th style="padding:4px 8px;border:1px solid #ddd;">Type</th>
-        <th style="padding:4px 8px;border:1px solid #ddd;">Internal</th>
-        <th style="padding:4px 8px;border:1px solid #ddd;">External</th>
-        <th style="padding:4px 8px;border:1px solid #ddd;">Total</th>
-        <th style="padding:4px 8px;border:1px solid #ddd;">%</th>
-        <th style="padding:4px 8px;border:1px solid #ddd;">Grade</th>
-      </tr>
-    </thead>
-    <tbody>${rows}</tbody>
-  </table>`;
+  doc.autoTable({
+    startY: y,
+    margin: { left: MX, right: MX },
+    head: [['Subject', 'Type', 'Internal', 'External', 'Total', '%', 'Result']],
+    body: rows.map(r => r.cells),
+    theme: 'striped',
+    styles: { font: 'helvetica', fontSize: 8.3, textColor: PDF_COLORS.ink, cellPadding: { top: 2, bottom: 2, left: 2.2, right: 2.2 } },
+    headStyles: { fillColor: PDF_COLORS.dark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.8 },
+    alternateRowStyles: { fillColor: PDF_COLORS.panel },
+    columnStyles: {
+      1: { cellWidth: 20, textTransform: 'capitalize' },
+      2: { halign: 'center', cellWidth: 22 },
+      3: { halign: 'center', cellWidth: 22 },
+      4: { halign: 'center', cellWidth: 22 },
+      5: { halign: 'center', cellWidth: 16 },
+      6: { halign: 'center', cellWidth: 28 },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 1) {
+        data.cell.text = data.cell.text.map(t => t.charAt(0).toUpperCase() + t.slice(1));
+      }
+      if (data.section === 'body' && (data.column.index === 5 || data.column.index === 6)) {
+        const r = rows[data.row.index];
+        const c = data.column.index === 6 && !r.passed ? PDF_COLORS.low : gradeColorPdf(r.pct);
+        data.cell.styles.textColor = c;
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+  });
+  return doc.lastAutoTable.finalY;
 }

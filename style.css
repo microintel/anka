@@ -1044,6 +1044,18 @@ option { background: var(--bg-raised); }
   .seg-control     { grid-template-columns: 1fr; }
   .live-total      { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
 
+  .internal-comp-row {
+    grid-template-columns: 1fr 1fr !important;
+    position: relative;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px dashed var(--border);
+  }
+  .internal-comp-row .form-field:first-child { grid-column: 1 / -1; }
+  .internal-comp-row button.btn-danger {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
   /* ── STATISTICS ── */
   .stats-toolbar { flex-wrap: wrap; }
   .stats-toolbar .form-input { max-width: none; flex: 1; }
