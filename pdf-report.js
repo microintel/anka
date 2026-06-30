@@ -1,449 +1,161 @@
+// ══════════════════════════════════════════════════
+//  PDF REPORT — full report incl. profile, stage order,
+//  subject tables and every chart in the app
+// ══════════════════════════════════════════════════
 async function generatePDFReport() {
+  if (!state.stages.length) { toast('Add a stage with subjects first'); return; }
+
+  toast('Generating full report…');
+
+  // Make sure every chart in the app has been rendered at least once
+  // so its canvas has pixel data we can export as an image.
+  if (typeof renderDashCharts === 'function') renderDashCharts();
+  if (typeof renderStatsPage === 'function') renderStatsPage();
+  if (typeof renderCharts === 'function') renderCharts();
+  await new Promise(r => setTimeout(r, 350)); // let Chart.js finish painting
+
+  const now = new Date().toLocaleString('en-IN');
+  const overallPct = state.subjects.length
+    ? stageAvg(state.subjects.filter(s => s.subjectType !== 'audit'))
+    : 0;
+
+  // ── Profile summary ──
+  const profileHtml = `
+    <div style="display:flex;align-items:center;gap:16px;border:1px solid #e6dfc8;border-radius:8px;padding:14px 18px;margin-bottom:18px;background:#faf7ee;">
+      <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#3a5a7a,#c8922a);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:700;flex-shrink:0;">${escHtml((userProfile.name || 'U')[0].toUpperCase())}</div>
+      <div style="flex:1;">
+        <div style="font-size:1rem;font-weight:700;">${escHtml(userProfile.name || 'User')}</div>
+        <div style="font-size:0.75rem;color:#666;">${escHtml(userProfile.email || '')} · Member since ${escHtml(userProfile.createdDate || '')}</div>
+      </div>
+      <div style="display:flex;gap:14px;text-align:center;">
+        <div><div style="font-size:1.1rem;font-weight:700;color:#3a5a7a;">${state.stages.length}</div><div style="font-size:0.6rem;color:#888;text-transform:uppercase;">Stages</div></div>
+        <div><div style="font-size:1.1rem;font-weight:700;color:#3a5a7a;">${state.subjects.length}</div><div style="font-size:0.6rem;color:#888;text-transform:uppercase;">Subjects</div></div>
+        <div><div style="font-size:1.1rem;font-weight:700;color:#c8922a;">${overallPct}%</div><div style="font-size:0.6rem;color:#888;text-transform:uppercase;">Overall</div></div>
+      </div>
+    </div>`;
+
+  // ── Stage order ──
+  const orderHtml = `
+    <h2 style="margin-top:8px;border-bottom:2px solid #c8922a;padding-bottom:4px;">Stage Order</h2>
+    <ol style="margin:8px 0 4px 22px;font-size:12.5px;">
+      ${state.stages.map(s => `<li style="margin-bottom:3px;">${escHtml(stageLabel(s))} — ${stageAvg(stageSubjects(s.id))}%</li>`).join('')}
+    </ol>`;
+
+  // ── Per-stage subject tables ──
+  let stagesHtml = '';
+  state.stages.forEach((stage, idx) => {
+    const subs = stageSubjects(stage.id);
+    if (!subs.length) return;
+    const avg = stageAvg(subs);
+
+    let body = '';
+    if (stage.mode === 'annual') {
+      body = subjectRowsHtml(subs);
+    } else {
+      body = stage.terms.map(term => {
+        const tSubs = termSubjects(stage.id, term.id);
+        if (!tSubs.length) return '';
+        return `<h4 style="margin:14px 0 6px;color:#c8922a;">${escHtml(term.label)} — ${termAvg(stage.id, term.id)}%</h4>${subjectRowsHtml(tSubs)}`;
+      }).join('');
+    }
+
+    stagesHtml += `
+      <h2 style="margin-top:28px;border-bottom:2px solid #c8922a;padding-bottom:4px;">
+        ${idx + 1}. ${escHtml(stageLabel(stage))} (${stage.mode === 'annual' ? 'Annual' : 'Semester-wise'}) — ${avg}%
+      </h2>
+      ${body}`;
+  });
+
+  // ── Charts gallery (every chart currently in the app) ──
+  const chartBlock = (id, title) => {
+    const inst = chartInstances[id];
+    if (!inst) return '';
+    let img;
+    try { img = inst.toBase64Image(); } catch (e) { return ''; }
+    return `
+      <div style="break-inside:avoid;margin-bottom:16px;">
+        <div style="font-size:0.78rem;font-weight:600;color:#444;margin-bottom:4px;">${escHtml(title)}</div>
+        <img src="${img}" style="width:100%;max-width:320px;border:1px solid #e6e2d6;border-radius:6px;background:#fff;">
+      </div>`;
+  };
+
+  const chartCells = [
+    chartBlock('chartDashPie', 'Grade Distribution — All Subjects'),
+    chartBlock('chartStageComp', 'Average % by Stage'),
+    chartBlock('chartTermAvg', 'Semester-wise Average %'),
+    chartBlock('chartGradePie', 'Grade Distribution'),
+    chartBlock('chartPassFail', 'Pass vs Fail'),
+    chartBlock('chartTop8', 'Top 8 Subjects by %'),
+    chartBlock('chartAllStagesBar', 'All Stages — Comparison'),
+    chartBlock('chartAllStagesGrowth', 'All Stages — Growth Trend'),
+    chartBlock('chartStatsAllPie', 'All Stages — Share of Average %'),
+    ...state.stages.map(s => chartBlock(`chartLine-${s.id}`, `${stageLabel(s)} — Term Growth`)),
+    ...state.stages.map(s => chartBlock(`chartBar-${s.id}`, `${stageLabel(s)} — Subject %`)),
+  ].filter(Boolean).join('');
+
+  const chartsHtml = chartCells ? `
+    <h2 style="margin-top:30px;border-bottom:2px solid #c8922a;padding-bottom:4px;page-break-before:always;">Visual Analytics</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;">${chartCells}</div>` : '';
+
+  const html = `
+  <div style="font-family:Arial,sans-serif;color:#222;padding:24px;">
+    <h1 style="text-align:center;margin-bottom:0;">Academic Report</h1>
+    <p style="text-align:center;color:#666;margin-top:4px;margin-bottom:18px;">Generated ${now}</p>
+    ${profileHtml}
+    ${orderHtml}
+    ${stagesHtml || '<p>No subjects recorded yet.</p>'}
+    ${chartsHtml}
+    <p style="margin-top:30px;font-size:11px;color:#888;text-align:center;">Developed by Microintel</p>
+  </div>`;
+
+  const container = document.createElement('div');
+  container.style.width = '780px';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
   try {
-    const now = new Date().toLocaleString('en-IN');
-    const reportDate = new Date().toISOString().slice(0, 10);
+    await html2pdf().set({
+      margin: 10,
+      filename: `academic_report_${Date.now()}.pdf`,
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] },
+    }).from(container).save();
+    toast('✓ Full PDF report generated');
+  } catch (err) {
+    toast('Failed to generate PDF');
+  } finally {
+    container.remove();
+  }
+}
 
-    // ═══════════════════════════════════════
-    // Helpers
-    // ═══════════════════════════════════════
+function subjectRowsHtml(subs) {
+  const rows = subs.map(s => {
+    const t = calcSubjectTotal(s);
+    const p = pct(t.scored, t.max);
+    return `<tr>
+      <td style="padding:4px 8px;border:1px solid #ddd;">${escHtml(s.name)}</td>
+      <td style="padding:4px 8px;border:1px solid #ddd;text-transform:capitalize;">${s.subjectType}</td>
+      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${t.intObtained}/${t.intMax}</td>
+      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${t.extObtained}/${t.extMax}</td>
+      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${t.scored}/${t.max}</td>
+      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${p}%</td>
+      <td style="padding:4px 8px;border:1px solid #ddd;text-align:center;">${grade(p)}</td>
+    </tr>`;
+  }).join('');
 
-    function calculateSubject(subj) {
-      let internalScored = 0;
-      let internalMax = 0;
-
-      if (subj.components && subj.components.length) {
-        subj.components.forEach(comp => {
-          internalScored += Number(comp.scored || 0);
-          internalMax += Number(comp.max || 0);
-        });
-      }
-
-      const externalScored = Number(subj.external?.scored || 0);
-      const externalMax = Number(subj.external?.max || 0);
-
-      const totalScored = internalScored + externalScored;
-      const totalMax = internalMax + externalMax;
-
-      const percentage = totalMax
-        ? ((totalScored / totalMax) * 100).toFixed(1)
-        : "0";
-
-      return {
-        internalScored,
-        internalMax,
-        externalScored,
-        externalMax,
-        totalScored,
-        totalMax,
-        percentage
-      };
-    }
-
-    function getGrade(p) {
-      p = Number(p);
-
-      if (p >= 90) return 'O';
-      if (p >= 80) return 'A+';
-      if (p >= 70) return 'A';
-      if (p >= 60) return 'B+';
-      if (p >= 50) return 'B';
-      if (p >= 40) return 'C';
-
-      return 'F';
-    }
-
-    function stageAverage(subjects, isSSLC = false) {
-      if (!subjects.length) return "0";
-
-      let scored = 0;
-      let max = 0;
-
-      subjects.forEach(subj => {
-        if (isSSLC) {
-          scored += Number(subj.scored || 0);
-          max += Number(subj.max || 0);
-        } else {
-          const calc = calculateSubject(subj);
-
-          scored += calc.totalScored;
-          max += calc.totalMax;
-        }
-      });
-
-      return max
-        ? ((scored / max) * 100).toFixed(1)
-        : "0";
-    }
-
-    // ═══════════════════════════════════════
-    // Build SSLC Table
-    // ═══════════════════════════════════════
-
-    function buildSSLCSection() {
-      if (!state.sslc.length) {
-        return `
-          <div class="section-block">
-            <h2>SSLC</h2>
-            <p>No subjects available</p>
-          </div>
-        `;
-      }
-
-      let rows = '';
-
-      state.sslc.forEach(subj => {
-        let intScored = 0, intMax = 0;
-        const comps = subj.components || [];
-        comps.forEach(c => { intScored += Number(c.scored||0); intMax += Number(c.max||0); });
-        const extScored = Number(subj.external?.scored || 0);
-        const extMax    = Number(subj.external?.max    || 0);
-        const totalS = intScored + extScored;
-        const totalM = intMax    + extMax;
-        // Legacy fallback
-        const finalS = totalM > 0 ? totalS : Number(subj.scored || 0);
-        const finalM = totalM > 0 ? totalM : Number(subj.max    || 0);
-        const percentage = finalM ? ((finalS / finalM) * 100).toFixed(1) : 0;
-
-        const internalDetail = comps.length
-          ? comps.map(c => `${c.name}: ${c.scored}/${c.max}`).join('<br>')
-          : (totalM === 0 ? `${subj.scored||0}/${subj.max||0}` : `${intScored}/${intMax}`);
-
-        const extDisplay = extMax > 0 ? `${extScored}/${extMax}` : '—';
-
-        rows += `
-          <tr>
-            <td>${subj.name}</td>
-            <td>${internalDetail}</td>
-            <td>${extDisplay}</td>
-            <td>${finalS}/${finalM}</td>
-            <td>${percentage}%</td>
-            <td>${getGrade(percentage)}</td>
-          </tr>
-        `;
-      });
-
-      return `
-        <div class="section-block">
-          <h2>SSLC</h2>
-
-          <div class="summary">
-            Overall Percentage: ${stageAverage(state.sslc, true)}%
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Subject</th>
-                <th>Internal Components</th>
-                <th>External</th>
-                <th>Total</th>
-                <th>%</th>
-                <th>Grade</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              ${rows}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }
-
-    // ═══════════════════════════════════════
-    // Build Diploma / Engineering
-    // ═══════════════════════════════════════
-
-    function buildAdvancedSection(title, subjects) {
-      if (!subjects.length) {
-        return `
-          <div class="section-block">
-            <h2>${title}</h2>
-            <p>No subjects available</p>
-          </div>
-        `;
-      }
-
-      let rows = '';
-
-      subjects.forEach(subj => {
-        const calc = calculateSubject(subj);
-
-        const internalDetails = (subj.components || [])
-          .map(c =>
-            `${c.name}: ${c.scored}/${c.max}`
-          )
-          .join('<br>');
-
-        rows += `
-          <tr>
-            <td>${subj.sem || '-'}</td>
-
-            <td>
-              <strong>${subj.name}</strong>
-              <br>
-              <small>${subj.examType || 'regular'}</small>
-            </td>
-
-            <td>
-              ${internalDetails || '-'}
-            </td>
-
-            <td>
-              ${calc.internalScored}/${calc.internalMax}
-            </td>
-
-            <td>
-              ${calc.externalScored}/${calc.externalMax}
-            </td>
-
-            <td>
-              ${calc.totalScored}/${calc.totalMax}
-            </td>
-
-            <td>
-              ${calc.percentage}%
-            </td>
-
-            <td>
-              ${getGrade(calc.percentage)}
-            </td>
-          </tr>
-        `;
-      });
-
-      return `
-        <div class="section-block">
-          <h2>${title}</h2>
-
-          <div class="summary">
-            Overall Percentage: ${stageAverage(subjects)}%
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Semester</th>
-                <th>Subject</th>
-                <th>Internal Components</th>
-                <th>Internal Total</th>
-                <th>External</th>
-                <th>Total</th>
-                <th>%</th>
-                <th>Grade</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              ${rows}
-            </tbody>
-          </table>
-        </div>
-      `;
-    }
-
-    // ═══════════════════════════════════════
-    // User Details
-    // ═══════════════════════════════════════
-
-    const profileName =
-      userProfile.name ||
-      localStorage.getItem('userName') ||
-      'Student';
-
-    const profileEmail =
-      userProfile.email ||
-      localStorage.getItem('userEmail') ||
-      'No Email';
-
-    // ═══════════════════════════════════════
-    // Full HTML
-    // ═══════════════════════════════════════
-
-    let htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-
-        <style>
-        body {
-        font-family: 'Segoe UI', sans-serif;
-        background: #0b0b0b;
-        color: #f5f5f5;
-        padding: 24px;
-        line-height: 1.5;
-        }
-        
-        h1 {
-        text-align: center;
-        color: #22c55e;
-        font-size: 32px;
-        margin-bottom: 4px;
-        letter-spacing: 1px;
-        }
-        
-        .subtitle {
-        text-align: center;
-        color: #999;
-        margin-bottom: 30px;
-        font-size: 14px;
-        }
-        
-        .info-box {
-        background: #161616;
-        border: 1px solid #2c2c2c;
-        border-left: 4px solid #22c55e;
-        border-radius: 10px;
-        padding: 16px;
-        margin-bottom: 30px;
-        }
-        
-        .info-box div {
-        margin-bottom: 8px;
-        font-size: 14px;
-        }
-        
-        .section-block {
-        margin-top: 40px;
-        }
-        
-        h2 {
-        background: #22c55e;
-        color: white;
-        padding: 12px 16px;
-        border-radius: 8px;
-        margin-bottom: 12px;
-        font-size: 20px;
-        }
-        
-        .summary {
-        margin-bottom: 14px;
-        color: #d6d6d6;
-        font-size: 14px;
-        font-weight: bold;
-        }
-        
-        table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-        font-size: 11px;
-        background: #121212;
-        border-radius: 8px;
-        overflow: hidden;
-        }
-        
-        thead {
-        background: #1d1d1d;
-        }
-        
-        th {
-        color: #22c55e;
-        font-weight: 600;
-        padding: 10px;
-        border: 1px solid #2e2e2e;
-        text-align: left;
-        }
-        
-        td {
-        padding: 9px;
-        border: 1px solid #2a2a2a;
-        vertical-align: top;
-        color: #eee;
-        }
-        
-        tr:nth-child(even) {
-        background: #151515;
-        }
-        
-        small {
-        color: #999;
-        }
-        
-        .footer {
-        margin-top: 50px;
-        text-align: center;
-        color: #888;
-        font-size: 12px;
-        }
-        
-        .grade-o  { color: #4ade80; font-weight: bold; }
-        .grade-a  { color: #60a5fa; font-weight: bold; }
-        .grade-b  { color: #facc15; font-weight: bold; }
-        .grade-f  { color: #f87171; font-weight: bold; }
-        
-        .subject-name {
-        font-weight: 600;
-        color: white;
-        margin-bottom: 4px;
-        }
-        
-        .exam-type {
-        color: #888;
-        font-size: 10px;
-        text-transform: uppercase;
-        }
-        
-        .marks-good {
-        color: #4ade80;
-        font-weight: bold;
-        }
-        
-        .marks-mid {
-        color: #facc15;
-        font-weight: bold;
-        }
-        
-        .marks-low {
-        color: #f87171;
-        font-weight: bold;
-        }
-        </style>
-      </head>
-
-      <body>
-
-        <h1>REDUNDANT Academic Report</h1>
-
-        <div class="subtitle">
-          Complete Academic Performance Record
-        </div>
-
-        <div class="info-box">
-          <div><strong>Name:</strong> ${profileName}</div>
-          <div><strong>Email:</strong> ${profileEmail}</div>
-          <div><strong>Generated:</strong> ${now}</div>
-          <div><strong>Report ID:</strong> ${reportDate}</div>
-        </div>
-
-        ${buildSSLCSection()}
-
-        ${buildAdvancedSection(
-          'Diploma',
-          state.diploma
-        )}
-
-        ${buildAdvancedSection(
-          'Engineering',
-          state.engineering
-        )}
-
-        <div class="footer">
-          Developed by <strong>Microintel</strong>
-        </div>
-
-      </body>
-      </html>
-    `;
-
-    // ═══════════════════════════════════════
-    // Create Temp Element
-    // ═══════════════════════════════════════
-
-    const tempContainer =
-      document.createElement('div');
-
-    tempContainer.innerHTML = htmlContent;
-
-    document.body.appendChild(tempContainer);...
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px;">
+    <thead>
+      <tr style="background:#f5f0e6;">
+        <th style="padding:4px 8px;border:1px solid #ddd;">Subject</th>
+        <th style="padding:4px 8px;border:1px solid #ddd;">Type</th>
+        <th style="padding:4px 8px;border:1px solid #ddd;">Internal</th>
+        <th style="padding:4px 8px;border:1px solid #ddd;">External</th>
+        <th style="padding:4px 8px;border:1px solid #ddd;">Total</th>
+        <th style="padding:4px 8px;border:1px solid #ddd;">%</th>
+        <th style="padding:4px 8px;border:1px solid #ddd;">Grade</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}

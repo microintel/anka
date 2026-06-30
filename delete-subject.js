@@ -1,8 +1,8 @@
 // ══════════════════════════════════════════════════
 //  DELETE SUBJECT
 // ══════════════════════════════════════════════════
-function confirmDelete(stage, semId, id) {
-  const subj = state[stage].find(s=>s.id===id);
+function confirmDelete(stageId, id) {
+  const subj = state.subjects.find(s => s.id === id);
   openModal('Delete Subject', `
     <div class="confirm-box">
       <div class="modal-title" style="text-align:center;border:none;margin-bottom:0.5rem;">Are you sure?</div>
@@ -10,17 +10,15 @@ function confirmDelete(stage, semId, id) {
     </div>
   `);
   setModalFooter([
-    { label:'Cancel', cls:'btn-ghost', fn:'closeModal()' },
-    { label:'Delete', cls:'btn-danger', fn:`deleteSubject('${stage}','${semId}','${id}')` },
+    { label: 'Cancel', cls: 'btn-ghost', fn: 'closeModal()' },
+    { label: 'Delete', cls: 'btn-danger', fn: `deleteSubject('${stageId}','${id}')` },
   ]);
 }
 
-async function deleteSubject(stage, semId, id) {
-  state[stage] = state[stage].filter(s=>s.id!==id);
-  await dbDelete(stage, id);
+async function deleteSubject(stageId, id) {
+  state.subjects = state.subjects.filter(s => s.id !== id);
+  await dbDelete('subjects', id);
   closeModal();
   toast('Subject deleted');
-  if (stage === 'sslc') renderSSLC();
-  else renderStage(stage);
+  renderStageView(stageId);
 }
-

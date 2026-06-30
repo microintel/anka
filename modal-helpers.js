@@ -2,7 +2,6 @@
 //  MODAL HELPERS
 // ══════════════════════════════════════════════════
 function openModal(title, bodyHTML) {
-  compIdx = 0;
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalBody').innerHTML = bodyHTML;
   document.getElementById('modalOverlay').classList.add('open');

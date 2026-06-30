@@ -1,18 +1,27 @@
 // ══════════════════════════════════════════════════
-//  STATE
+//  STATE  (fully dynamic: stages + subjects)
 // ══════════════════════════════════════════════════
 let DB;
-const DB_NAME = 'redundant_vault';
+const DB_NAME = 'redundant_vault_v2'; // internal DB name kept stable so existing data isn't lost on rename
 const DB_VER  = 1;
 
 let state = {
-  sslc: [],          // [{id, name, scored, max}]
-  diploma: [],       // [{id, sem, name, components:[{name,scored,max}], external:{scored,max}}]
-  engineering: [],   // [{id, sem, name, examType, components:[...], external:{scored,max}}]
-  semesters: {
-    diploma: [],     // [{id, label}] — ordered list of sems
-    engineering: []
-  }
+  stages: [],    // [{id, type, label, mode:'annual'|'semester', terms:[{id,label}]}]
+  subjects: []   // [{id, stageId, termId, name, subjectType:'theory'|'practical'|'audit',
+                 //   internal:{min,max,obtained}, external:{min,max,obtained}}]
+};
+
+// ══════════════════════════════════════════════════
+//  STAGE TYPE DEFINITIONS
+// ══════════════════════════════════════════════════
+const STAGE_TYPES = {
+  sslc:        { label: 'SSLC',                    icon: '<i class="bi bi-mortarboard-fill"></i>', defaultMode: 'annual'   },
+  puc:         { label: 'PUC / Pre-University',     icon: '<i class="bi bi-book-fill"></i>',         defaultMode: 'annual'   },
+  diploma:     { label: 'Diploma',                  icon: '<i class="bi bi-tools"></i>',             defaultMode: 'semester' },
+  engineering: { label: 'Engineering (B.E/B.Tech)', icon: '<i class="bi bi-gear-fill"></i>',         defaultMode: 'semester' },
+  medical:     { label: 'Medical (MBBS / Allied)',  icon: '<i class="bi bi-heart-pulse-fill"></i>',  defaultMode: 'semester' },
+  iti:         { label: 'ITI',                      icon: '<i class="bi bi-wrench-adjustable"></i>',defaultMode: 'semester' },
+  custom:      { label: 'Custom',                   icon: '<i class="bi bi-journal-bookmark-fill"></i>', defaultMode: 'semester' },
 };
 
 // ══════════════════════════════════════════════════
@@ -23,8 +32,8 @@ function initDB() {
     const req = indexedDB.open(DB_NAME, DB_VER);
     req.onupgradeneeded = e => {
       const db = e.target.result;
-      ['sslc','diploma','engineering','meta'].forEach(s => {
-        if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, {keyPath:'id'});
+      ['stages', 'subjects'].forEach(s => {
+        if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' });
       });
     };
     req.onsuccess = e => { DB = e.target.result; res(); };
@@ -60,26 +69,14 @@ function dbDelete(store, id) {
 }
 
 async function loadAll() {
-  state.sslc        = await dbGetAll('sslc');
-  state.diploma     = await dbGetAll('diploma');
-  state.engineering = await dbGetAll('engineering');
-  const meta = await dbGetAll('meta');
-  const semMeta = meta.find(m => m.id === 'semesters');
-  if (semMeta) {
-    state.semesters = semMeta.data;
-  } else {
-    // defaults
-    state.semesters = {
-      diploma: [{id:'d1',label:'Semester 1'},{id:'d2',label:'Semester 2'},{id:'d3',label:'Semester 3'},{id:'d4',label:'Semester 4'},{id:'d5',label:'Semester 5'},{id:'d6',label:'Semester 6'}],
-      engineering: [{id:'e1',label:'Semester 1'},{id:'e2',label:'Semester 2'},{id:'e3',label:'Semester 3'},{id:'e4',label:'Semester 4'},{id:'e5',label:'Semester 5'},{id:'e6',label:'Semester 6'},{id:'e7',label:'Semester 7'},{id:'e8',label:'Semester 8'}]
-    };
-    await saveSemesters();
-  }
+  state.stages   = await dbGetAll('stages');
+  state.subjects = await dbGetAll('subjects');
+  state.stages.forEach((s, i) => { if (s.order === undefined || s.order === null) s.order = i; });
+  sortStages();
 }
 
-async function saveSemesters() {
-  await dbPut('meta', {id:'semesters', data: state.semesters});
+function sortStages() {
+  state.stages.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
-function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
-
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }

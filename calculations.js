@@ -1,9 +1,9 @@
 // ══════════════════════════════════════════════════
-//  UTILITIES
+//  CALCULATIONS
 // ══════════════════════════════════════════════════
 function pct(scored, max) {
   if (!max) return 0;
-  return Math.round((scored/max)*100*10)/10;
+  return Math.round((scored / max) * 100 * 10) / 10;
 }
 
 function grade(p) {
@@ -22,26 +22,56 @@ function pctClass(p) {
   return 'pct-low';
 }
 
+// Totals for one subject (internal + external)
 function calcSubjectTotal(subj) {
-  const intTotal = (subj.components||[]).reduce((a,c)=>a+(+c.scored||0),0);
-  const intMax   = (subj.components||[]).reduce((a,c)=>a+(+c.max||0),0);
-  const extS = +(subj.external?.scored||0);
-  const extM = +(subj.external?.max||0);
-  return { scored: intTotal+extS, max: intMax+extM, intScored:intTotal, intMax, extS, extM };
+  const i = subj.internal || { min: 0, max: 0, obtained: 0 };
+  const e = subj.external || { min: 0, max: 0, obtained: 0 };
+  const intObtained = +i.obtained || 0;
+  const intMax = +i.max || 0;
+  const extObtained = +e.obtained || 0;
+  const extMax = +e.max || 0;
+  return {
+    scored: intObtained + extObtained,
+    max: intMax + extMax,
+    intObtained, intMax, extObtained, extMax,
+    intMin: +i.min || 0, extMin: +e.min || 0,
+  };
 }
 
+// Whether a subject clears both internal & external minimums
+function subjectPass(subj) {
+  const t = calcSubjectTotal(subj);
+  const intOk = t.intMax ? t.intObtained >= t.intMin : true;
+  const extOk = t.extMax ? t.extObtained >= t.extMin : true;
+  return intOk && extOk;
+}
+
+function stageSubjects(stageId) {
+  return state.subjects.filter(s => s.stageId === stageId);
+}
+
+function termSubjects(stageId, termId) {
+  return state.subjects.filter(s => s.stageId === stageId && s.termId === termId);
+}
+
+// Average %, excluding audit subjects (audit = pass/fail only, not counted in %)
 function stageAvg(subjects) {
-  if (!subjects.length) return 0;
-  let ts=0, tm=0;
-  subjects.forEach(s => { const t=calcSubjectTotal(s); ts+=t.scored; tm+=t.max; });
-  return tm ? pct(ts,tm) : 0;
+  const graded = subjects.filter(s => s.subjectType !== 'audit');
+  if (!graded.length) return 0;
+  let ts = 0, tm = 0;
+  graded.forEach(s => { const t = calcSubjectTotal(s); ts += t.scored; tm += t.max; });
+  return tm ? pct(ts, tm) : 0;
 }
 
-function semSubjects(stage, semId) {
-  return state[stage].filter(s => s.sem === semId);
+function termAvg(stageId, termId) {
+  return stageAvg(termSubjects(stageId, termId));
 }
 
-function semAvg(stage, semId) {
-  return stageAvg(semSubjects(stage, semId));
+function getStage(stageId) {
+  return state.stages.find(s => s.id === stageId);
 }
 
+function stageLabel(stage) {
+  if (!stage) return '';
+  return stage.label || (STAGE_TYPES[stage.type] || STAGE_TYPES.custom).label;
+}
