@@ -102,8 +102,8 @@ function initFirebaseAuth() {
       if (userProfile.email === 'user@example.com') {
         saveUserProfile(user.displayName || user.email || 'User', user.email || '');
       }
-      // auto-pull cloud data on sign-in
-      if (typeof restoreFromCloud === 'function') restoreFromCloud(true);
+      // cloud data is no longer auto-pulled on sign-in/reload — use the
+      // "Restore from Cloud" button on the Account page to pull manually
     }
   });
 }
