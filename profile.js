@@ -155,4 +155,104 @@ function renderAccountPage() {
 
   renderAccountHighlight();
   updateThemeButtons();
+  renderCloudAuthSection();
+  }
+
+
+// ══════════════════════════════════════════════════
+//  CLOUD AUTH (Google + Email/Password)
+// ══════════════════════════════════════════════════
+function showLoginModal() {
+  openModal('Sign In', `
+    <div class="profile-section">
+      <button class="btn btn-solid" style="width:100%;margin-bottom:1rem;" onclick="signInWithGoogle()">
+        <i class="bi bi-google"></i> Continue with Google
+      </button>
+      <div style="text-align:center;color:var(--text-secondary);font-size:0.75rem;margin:0.75rem 0;">— or use email —</div>
+      <div class="edit-form-field">
+        <label class="edit-form-label">Email</label>
+        <input type="email" id="authEmailInput" class="edit-form-input" placeholder="you@example.com">
+      </div>
+      <div class="edit-form-field">
+        <label class="edit-form-label">Password</label>
+        <input type="password" id="authPasswordInput" class="edit-form-input" placeholder="••••••••">
+      </div>
+    </div>
+  `);
+  setModalFooter([
+    { label: 'Cancel', cls: 'btn-ghost', fn: 'closeModal()' },
+    { label: 'Create Account', cls: 'btn-ghost', fn: 'signUpWithEmail()' },
+    { label: 'Sign In', cls: 'btn-solid', fn: 'signInWithEmailPassword()' },
+  ]);
+}
+
+async function signInWithGoogle() {
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    await auth.signInWithPopup(provider);
+    closeModal();
+    toast('✓ Signed in with Google');
+  } catch (err) {
+    toast(err.message || 'Google sign-in failed');
+  }
+}
+
+async function signInWithEmailPassword() {
+  const email = document.getElementById('authEmailInput').value.trim();
+  const password = document.getElementById('authPasswordInput').value;
+  if (!email || !password) { toast('Enter email and password'); return; }
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    closeModal();
+    toast('✓ Signed in');
+  } catch (err) {
+    toast(err.message || 'Sign-in failed');
+  }
+}
+
+async function signUpWithEmail() {
+  const email = document.getElementById('authEmailInput').value.trim();
+  const password = document.getElementById('authPasswordInput').value;
+  if (!email || !password) { toast('Enter email and password'); return; }
+  if (password.length < 6) { toast('Password must be at least 6 characters'); return; }
+  try {
+    await auth.createUserWithEmailAndPassword(email, password);
+    closeModal();
+    toast('✓ Account created');
+  } catch (err) {
+    toast(err.message || 'Sign-up failed');
+  }
+}
+
+async function signOutUser() {
+  await auth.signOut();
+  toast('Signed out');
+  renderAccountPage();
+}
+
+function renderCloudAuthSection() {
+  const el = document.getElementById('cloudAuthSection');
+  if (!el) return;
+
+  if (!currentUser) {
+    el.innerHTML = `
+      <div class="account-label"><i class="bi bi-cloud-fill"></i> Cloud Sync</div>
+      <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem;">
+        Sign in to back up your data to the cloud and restore it on any device.
+      </p>
+      <div class="account-actions">
+        <button class="btn btn-solid btn-sm" onclick="showLoginModal()"><i class="bi bi-box-arrow-in-right"></i> Sign In</button>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="account-label"><i class="bi bi-cloud-check-fill"></i> Cloud Sync</div>
+      <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0.75rem;">
+        Signed in as <strong>${escHtml(currentUser.email || currentUser.displayName || 'account')}</strong>
+      </p>
+      <div class="account-actions">
+        <button class="btn btn-solid btn-sm" onclick="backupToCloud()"><i class="bi bi-cloud-arrow-up-fill"></i> Backup to Cloud</button>
+        <button class="btn btn-ghost btn-sm" onclick="restoreFromCloud()"><i class="bi bi-cloud-arrow-down-fill"></i> Restore from Cloud</button>
+        <button class="btn btn-ghost btn-sm" onclick="signOutUser()"><i class="bi bi-box-arrow-right"></i> Sign Out</button>
+      </div>`;
+  }
 }

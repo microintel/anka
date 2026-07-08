@@ -75,3 +75,60 @@ async function confirmImport() {
   showSection('dashboard');
   toast('✓ Backup restored');
 }
+
+
+
+// ══════════════════════════════════════════════════
+//  CLOUD BACKUP / RESTORE (Firestore)
+// ══════════════════════════════════════════════════
+async function backupToCloud() {
+  if (!currentUser) { toast('Sign in first'); return; }
+  try {
+    await firestoreDB.collection('users').doc(currentUser.uid).set({
+      stages: state.stages,
+      subjects: state.subjects,
+      profile: {
+        name: userProfile.name,
+        email: userProfile.email,
+        createdDate: userProfile.createdDate,
+      },
+      updatedAt: new Date().toISOString(),
+    });
+    toast('✓ Backup saved to cloud');
+  } catch (err) {
+    toast('Cloud backup failed: ' + (err.message || err));
+  }
+}
+
+async function restoreFromCloud(silent) {
+  if (!currentUser) { if (!silent) toast('Sign in first'); return; }
+  try {
+    const doc = await firestoreDB.collection('users').doc(currentUser.uid).get();
+    if (!doc.exists) { if (!silent) toast('No cloud backup found'); return; }
+
+    const data = doc.data();
+    if (!Array.isArray(data.stages) || !Array.isArray(data.subjects)) {
+      if (!silent) toast('Cloud backup is invalid');
+      return;
+    }
+
+    window.pendingImportData = data;
+
+    if (silent) {
+      await confirmImport();
+    } else {
+      openModal('Restore from Cloud', `
+        <div class="confirm-box">
+          <div class="modal-title" style="text-align:center;border:none;margin-bottom:0.5rem;">Restore cloud backup?</div>
+          <p class="confirm-msg">This will replace all current data with ${data.stages.length} stage(s) and ${data.subjects.length} subject(s) from the cloud.</p>
+        </div>
+      `);
+      setModalFooter([
+        { label: 'Cancel', cls: 'btn-ghost', fn: 'closeModal()' },
+        { label: 'Restore', cls: 'btn-danger', fn: 'confirmImport()' },
+      ]);
+    }
+  } catch (err) {
+    toast('Cloud restore failed: ' + (err.message || err));
+  }
+}

@@ -22,22 +22,44 @@ function pctClass(p) {
   return 'pct-low';
 }
 
-// Normalizes subj.internal into an array of components.
-// Supports the new array form ([{name,min,max,obtained}, ...]) as well as
-// the legacy single-object form ({min,max,obtained}) for old saved data.
+// Formats a number as a fixed two-decimal float, e.g. 85 -> "85.00"
+function fmt2(n) {
+  return (+n || 0).toFixed(2);
+}
+
+// Normalizes subj.internal into an array of components ({name, obtained}).
+// Supports:
+//  - the new format: { min, max, components:[{name,obtained},...] }
+//  - the legacy array form: [{name,min,max,obtained}, ...]
+//  - the legacy single-object form: {min,max,obtained}
 function internalComponents(subj) {
   const i = subj?.internal;
+  if (i && Array.isArray(i.components)) return i.components;
   if (Array.isArray(i)) return i;
-  if (i && ((+i.max) || (+i.obtained) || (+i.min))) return [{ name: 'Internal', ...i }];
+  if (i && ((+i.max) || (+i.obtained) || (+i.min))) return [{ name: 'Internal', obtained: i.obtained }];
   return [];
+}
+
+// Final IA (internal assessment) min/max for a subject.
+// New format stores min/max directly on subj.internal; legacy data derives
+// them by summing each component's own min/max.
+function internalMinMax(subj) {
+  const i = subj?.internal;
+  if (i && !Array.isArray(i) && (i.min !== undefined || i.max !== undefined)) {
+    return { min: +i.min || 0, max: +i.max || 0 };
+  }
+  const comps = Array.isArray(i) ? i : [];
+  return {
+    min: comps.reduce((s, c) => s + (+c.min || 0), 0),
+    max: comps.reduce((s, c) => s + (+c.max || 0), 0),
+  };
 }
 
 // Totals for one subject (internal + external)
 function calcSubjectTotal(subj) {
   const comps = internalComponents(subj);
   const intObtained = comps.reduce((s, c) => s + (+c.obtained || 0), 0);
-  const intMax = comps.reduce((s, c) => s + (+c.max || 0), 0);
-  const intMin = comps.reduce((s, c) => s + (+c.min || 0), 0);
+  const { min: intMin, max: intMax } = internalMinMax(subj);
   const e = subj.external || { min: 0, max: 0, obtained: 0 };
   const extObtained = +e.obtained || 0;
   const extMax = +e.max || 0;

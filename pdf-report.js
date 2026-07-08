@@ -202,14 +202,27 @@ async function generatePDFReport() {
       y += 6;
 
       // internal-component breakdown for every subject that has them
+      // (component rows show only name + obtained; a Final IA row per
+      // subject carries the overall internal min/max/obtained)
       const breakdown = [];
       g.subs.forEach(s => {
         const comps = internalComponents(s);
-        comps.forEach((c, ci) => breakdown.push([
+        const { min, max } = internalMinMax(s);
+        const rowsForSubj = [];
+        comps.forEach((c, ci) => rowsForSubj.push([
           ci === 0 ? s.name : '',
           c.name || 'Internal',
-          String(+c.min || 0), String(+c.max || 0), String(+c.obtained || 0),
+          fmt2(c.obtained),
         ]));
+        if (max) {
+          const totalObt = comps.reduce((sum, c) => sum + (+c.obtained || 0), 0);
+          rowsForSubj.push([
+            rowsForSubj.length ? '' : s.name,
+            `Final IA (Min ${fmt2(min)} / Max ${fmt2(max)})`,
+            fmt2(totalObt),
+          ]);
+        }
+        breakdown.push(...rowsForSubj);
       });
       if (breakdown.length) {
         y = ensureSpace(y, 14);
@@ -221,12 +234,12 @@ async function generatePDFReport() {
         doc.autoTable({
           startY: y,
           margin: { left: MX, right: MX },
-          head: [['Subject', 'Component', 'Min', 'Max', 'Obtained']],
+          head: [['Subject', 'Component', 'Obtained']],
           body: breakdown,
           theme: 'plain',
           styles: { font: 'helvetica', fontSize: 7.8, textColor: PDF_COLORS.dim, cellPadding: 1.6 },
           headStyles: { fillColor: PDF_COLORS.panel, textColor: PDF_COLORS.ink, fontStyle: 'bold', fontSize: 7.5 },
-          columnStyles: { 0: { fontStyle: 'bold', textColor: PDF_COLORS.ink }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+          columnStyles: { 0: { fontStyle: 'bold', textColor: PDF_COLORS.ink }, 2: { halign: 'center' } },
           didDrawCell: (data) => {
             if (data.section === 'body' && data.column.index === 0 && data.cell.raw) {
               setDraw(PDF_COLORS.rule);
@@ -261,7 +274,7 @@ function drawSubjectTable(doc, subs, y, MX, PW) {
       ? (passed ? 'Satisfactory' : 'Not Satisfactory')
       : `${grade(p)}${passed ? '' : ' · Fail'}`;
     return {
-      cells: [s.name, s.subjectType, `${t.intObtained}/${t.intMax}`, `${t.extObtained}/${t.extMax}`, `${t.scored}/${t.max}`, p + '%', result],
+      cells: [s.name, s.subjectType, `${fmt2(t.intObtained)}/${fmt2(t.intMax)}`, `${fmt2(t.extObtained)}/${fmt2(t.extMax)}`, `${fmt2(t.scored)}/${fmt2(t.max)}`, p + '%', result],
       pct: p, passed,
     };
   });

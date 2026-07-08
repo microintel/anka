@@ -68,13 +68,26 @@ function marksCell(label, m) {
   const min = +m.min || 0, max = +m.max || 0, ob = +m.obtained || 0;
   if (!max) return `<span style="color:var(--text-dim);font-size:0.72rem;">—</span>`;
   const below = ob < min;
-  return `<div class="comp-pill"><span class="comp-pill-name">${label}${min ? ` (min ${min})` : ''}</span><span class="comp-pill-score" style="${below ? 'color:var(--red);' : ''}">${ob}/${max}</span></div>`;
+  return `<div class="comp-pill"><span class="comp-pill-name">${label}${min ? ` (min ${fmt2(min)})` : ''}</span><span class="comp-pill-score" style="${below ? 'color:var(--red);' : ''}">${fmt2(ob)}/${fmt2(max)}</span></div>`;
+}
+
+// Component pill showing only name + obtained marks (no min/max)
+function compPill(name, obtained) {
+  return `<div class="comp-pill"><span class="comp-pill-name">${escHtml(name || 'Internal')}</span><span class="comp-pill-score">${fmt2(obtained)}</span></div>`;
 }
 
 function internalCell(subj) {
   const comps = internalComponents(subj);
-  if (!comps.length) return `<span style="color:var(--text-dim);font-size:0.72rem;">—</span>`;
-  return comps.map(c => marksCell(c.name || 'Internal', c)).join('');
+  const { min, max } = internalMinMax(subj);
+  const parts = [];
+  if (comps.length) parts.push(...comps.map(c => compPill(c.name, c.obtained)));
+  if (max) {
+    const totalObt = comps.reduce((s, c) => s + (+c.obtained || 0), 0);
+    const below = totalObt < min;
+    parts.push(`<div class="comp-pill"><span class="comp-pill-name">Final IA${min ? ` (min ${fmt2(min)})` : ''}</span><span class="comp-pill-score" style="${below ? 'color:var(--red);' : ''}">${fmt2(totalObt)}/${fmt2(max)}</span></div>`);
+  }
+  if (!parts.length) return `<span style="color:var(--text-dim);font-size:0.72rem;">—</span>`;
+  return parts.join('');
 }
 
 function subjectTable(stage, termIdForAdd, subs) {
@@ -90,7 +103,7 @@ function subjectTable(stage, termIdForAdd, subs) {
       </td>
       <td data-label="Internal">${internalCell(s)}</td>
       <td data-label="External">${marksCell('External', s.external || {})}</td>
-      <td data-label="Total" class="marks-badge" style="white-space:nowrap;">${t.scored}/${t.max}</td>
+      <td data-label="Total" class="marks-badge" style="white-space:nowrap;">${fmt2(t.scored)}/${fmt2(t.max)}</td>
       <td data-label="%"><span class="pct-badge ${pctClass(p)}">${p}%</span></td>
       <td data-label="Result">
         ${s.subjectType === 'audit'

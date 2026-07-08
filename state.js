@@ -80,3 +80,30 @@ function sortStages() {
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+
+
+// ══════════════════════════════════════════════════
+//  FIREBASE AUTH + FIRESTORE
+// ══════════════════════════════════════════════════
+let auth, firestoreDB, currentUser = null;
+
+function initFirebaseAuth() {
+  auth = firebase.auth();
+  firestoreDB = firebase.firestore();
+
+  auth.onAuthStateChanged(user => {
+    currentUser = user;
+    if (typeof renderAccountPage === 'function' && currentSection === 'account') {
+      renderAccountPage();
+    }
+    if (user) {
+      // sync display name/email into local profile if still default
+      if (userProfile.email === 'user@example.com') {
+        saveUserProfile(user.displayName || user.email || 'User', user.email || '');
+      }
+      // auto-pull cloud data on sign-in
+      if (typeof restoreFromCloud === 'function') restoreFromCloud(true);
+    }
+  });
+}

@@ -184,7 +184,7 @@
               </div>
             </div>
           </div>
-
+          <div class="profile-section" id="cloudAuthSection"></div>
           <div class="account-highlight-card" id="accountHighlight"></div>
 
           <div style="margin-bottom: 1.5rem;">
@@ -305,7 +305,21 @@
 <!-- PDF Generation Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = {
+  apiKey: "AIzaSyCixXgIvlTteX7k_xo7fpYLBfkflW6cv5M",
+  authDomain: "microintel-anka.firebaseapp.com",
+  projectId: "microintel-anka",
+  storageBucket: "microintel-anka.firebasestorage.app",
+  messagingSenderId: "131319904094",
+  appId: "1:131319904094:web:364158d4f80d54707f01cf"
+  };
+  firebase.initializeApp(firebaseConfig);
+</script>
 <script src="state.js"></script>
 <script src="calculations.js"></script>
 <script src="utils.js"></script>
@@ -324,9 +338,10 @@
 
 <script>
 (async function boot() {
-  localStorage.removeItem('userPhoto'); // photos are no longer stored
+  localStorage.removeItem('userPhoto');
   document.body.classList.toggle('theme-light', localStorage.getItem('theme') === 'light');
   await initDB();
+  initFirebaseAuth();
   await loadAll();
   renderNavTabs();
   showSection('dashboard');
