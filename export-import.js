@@ -132,3 +132,53 @@ async function restoreFromCloud(silent) {
     toast('Cloud restore failed: ' + (err.message || err));
   }
 }
+
+
+
+// ══════════════════════════════════════════════════
+//  FACTORY RESET (local only — cloud untouched)
+// ══════════════════════════════════════════════════
+function confirmFactoryReset() {
+  openModal('Factory Reset', `
+    <div class="confirm-box">
+      <div class="modal-title" style="text-align:center;border:none;margin-bottom:0.5rem;color:var(--red);">
+        <i class="bi bi-exclamation-triangle-fill"></i> Erase all local data?
+      </div>
+      <p class="confirm-msg">
+        This deletes every stage, subject and your profile details from <strong>this device only</strong>
+        (${state.stages.length} stage(s), ${state.subjects.length} subject(s)).
+        ${currentUser ? `Your cloud backup for <strong>${escHtml(currentUser.email || '')}</strong> will <strong>not</strong> be touched — restore it anytime with "Restore from Cloud".` : `You won't lose anything in the cloud since you're not signed in to any backup.`}
+      </p>
+    </div>
+  `);
+  setModalFooter([
+    { label: 'Cancel', cls: 'btn-ghost', fn: 'closeModal()' },
+    { label: 'Erase Everything', cls: 'btn-danger', fn: 'doFactoryReset()' },
+  ]);
+}
+
+async function doFactoryReset() {
+  // wipe IndexedDB stores
+  for (const s of state.stages) await dbDelete('stages', s.id);
+  for (const s of state.subjects) await dbDelete('subjects', s.id);
+  state.stages = [];
+  state.subjects = [];
+
+  // wipe local profile fields
+  ['userName', 'userEmail', 'userCreatedDate', 'userCreatedAt', 'userLastUpdated'].forEach(k => localStorage.removeItem(k));
+  userProfile.name = 'User';
+  userProfile.email = 'user@example.com';
+  userProfile.createdDate = new Date().toLocaleDateString('en-IN');
+  localStorage.setItem('userCreatedDate', userProfile.createdDate);
+  localStorage.setItem('userCreatedAt', new Date().toISOString());
+
+  // sign out so a reload doesn't auto-restore from cloud and undo the reset
+  if (currentUser && typeof auth !== 'undefined') {
+    try { await auth.signOut(); } catch (err) { /* ignore */ }
+  }
+
+  closeModal();
+  renderNavTabs();
+  showSection('dashboard');
+  toast('✓ Local data erased and signed out');
+}
