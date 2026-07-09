@@ -21,6 +21,7 @@ const STAGE_TYPES = {
   engineering: { label: 'Engineering (B.E/B.Tech)', icon: '<i class="bi bi-gear-fill"></i>',         defaultMode: 'semester' },
   medical:     { label: 'Medical (MBBS / Allied)',  icon: '<i class="bi bi-heart-pulse-fill"></i>',  defaultMode: 'semester' },
   iti:         { label: 'ITI',                      icon: '<i class="bi bi-wrench-adjustable"></i>',defaultMode: 'semester' },
+  cet:         { label: 'CET / Entrance Exam',      icon: '<i class="bi bi-award-fill"></i>',        defaultMode: 'cet'      },
   custom:      { label: 'Custom',                   icon: '<i class="bi bi-journal-bookmark-fill"></i>', defaultMode: 'semester' },
 };
 

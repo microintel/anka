@@ -19,7 +19,7 @@ function renderAddStagePage() {
         <input class="form-input" id="f-stage-label" value="${STAGE_TYPES.sslc.label}">
       </div>
     </div>
-    <div class="form-row single">
+    <div class="form-row single" id="f-stage-mode-row">
       <div class="form-field">
         <label class="form-label">Marking Pattern</label>
         <select class="form-input" id="f-stage-mode">
@@ -27,6 +27,9 @@ function renderAddStagePage() {
           <option value="semester">Semester-wise</option>
         </select>
       </div>
+    </div>
+    <div class="form-row single" id="f-stage-cet-note" style="display:none;">
+      <p style="font-size:0.8rem;color:var(--text-dim);margin:0;">CET stages don't track subjects or marks — just your previous-stage conversion score and your current rank. You'll fill these in after creating the stage.</p>
     </div>
     <div class="modal-footer" style="border-top:none;padding-top:0.5rem;">
       <button class="btn btn-ghost" onclick="showSection('dashboard')">Cancel</button>
@@ -40,28 +43,90 @@ function onStageTypeChange() {
   const type = document.getElementById('f-stage-type').value;
   const def = STAGE_TYPES[type];
   document.getElementById('f-stage-label').value = def.label;
-  document.getElementById('f-stage-mode').value = def.defaultMode;
+  const isCet = type === 'cet';
+  document.getElementById('f-stage-mode-row').style.display = isCet ? 'none' : '';
+  document.getElementById('f-stage-cet-note').style.display = isCet ? '' : 'none';
+  if (!isCet) document.getElementById('f-stage-mode').value = def.defaultMode;
 }
 
 async function saveStage() {
   const type = document.getElementById('f-stage-type').value;
   const label = document.getElementById('f-stage-label').value.trim() || STAGE_TYPES[type].label;
-  const mode = document.getElementById('f-stage-mode').value;
 
-  const stage = {
-    id: uid(),
-    type, label, mode,
-    order: state.stages.length,
-    terms: mode === 'annual'
-      ? [{ id: 'annual', label: 'Annual' }]
-      : [{ id: uid(), label: 'Semester 1' }],
-  };
+  let stage;
+  if (type === 'cet') {
+    stage = {
+      id: uid(),
+      type, label, mode: 'cet',
+      order: state.stages.length,
+      terms: [],
+      cet: { conversion: 0, rank: '', categoryRank: '' },
+    };
+  } else {
+    const mode = document.getElementById('f-stage-mode').value;
+    stage = {
+      id: uid(),
+      type, label, mode,
+      order: state.stages.length,
+      terms: mode === 'annual'
+        ? [{ id: 'annual', label: 'Annual' }]
+        : [{ id: uid(), label: 'Semester 1' }],
+    };
+  }
 
   state.stages.push(stage);
   await dbPut('stages', stage);
   renderNavTabs();
   showSection('stage:' + stage.id);
   toast('✓ Stage added');
+  if (type === 'cet') openEditCetModal(stage.id);
+}
+
+// ══════════════════════════════════════════════════
+//  CET STAGE — conversion score + rank editor
+// ══════════════════════════════════════════════════
+function openEditCetModal(stageId) {
+  const stage = getStage(stageId);
+  const c = stage.cet || (stage.cet = { conversion: 0, rank: '', categoryRank: '' });
+
+  openModal('CET Details', `
+    <div class="form-row single">
+      <div class="form-field">
+        <label class="form-label">Previous Stage Conversion Score (out of 100)</label>
+        <input class="form-input" type="number" step="0.01" min="0" max="100" id="f-cet-conversion" value="${c.conversion || ''}" placeholder="e.g. PUC marks converted to /100">
+      </div>
+    </div>
+    <div class="form-row single">
+      <div class="form-field">
+        <label class="form-label">Current CET Rank</label>
+        <input class="form-input" type="text" id="f-cet-rank" value="${escHtml(c.rank || '')}" placeholder="e.g. 4521">
+      </div>
+    </div>
+    <div class="form-row single">
+      <div class="form-field">
+        <label class="form-label">Category Rank <span style="color:var(--text-dim);font-weight:400;">(optional)</span></label>
+        <input class="form-input" type="text" id="f-cet-category-rank" value="${escHtml(c.categoryRank || '')}" placeholder="e.g. 812">
+      </div>
+    </div>
+  `);
+  setModalFooter([
+    { label: 'Cancel', cls: 'btn-ghost', fn: 'closeModal()' },
+    { label: 'Save', cls: 'btn-solid', fn: `saveCetDetails('${stageId}')` },
+  ]);
+}
+
+async function saveCetDetails(stageId) {
+  const stage = getStage(stageId);
+  stage.cet = {
+    conversion: +document.getElementById('f-cet-conversion').value || 0,
+    rank: document.getElementById('f-cet-rank').value.trim(),
+    categoryRank: document.getElementById('f-cet-category-rank').value.trim(),
+  };
+  await dbPut('stages', stage);
+  closeModal();
+  renderStageView(stageId);
+  if (currentSection === 'dashboard') renderDashboard();
+  toast('✓ CET details saved');
 }
 
 function confirmDeleteStage(stageId) {

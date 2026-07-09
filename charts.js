@@ -163,12 +163,16 @@ function renderStatsPage() {
     return;
   }
 
+  // Marks-based stages only — CET stages track rank, not %, so they're
+  // excluded from every percentage/average chart below.
+  const nonCetStages = state.stages.filter(s => s.mode !== 'cet');
+
   // Per-stage line + bar chart cards (one pair per stage, in current order)
   // Each stage card is accented with the stage's own colour so it's
   // instantly recognisable across every chart below.
   // Note: SSLC skips the Term Growth chart, and Diploma/Engineering skip
   // the Subject % chart (per user preference).
-  perStageEl.innerHTML = state.stages.map(s => `
+  perStageEl.innerHTML = nonCetStages.map(s => `
     ${s.type === 'sslc' ? '' : `
     <div class="chart-card" style="border-top:3px solid ${stageColor(s.id)};">
       <div class="chart-title"><span style="display:inline-block;width:0.65rem;height:0.65rem;border-radius:50%;background:${stageColor(s.id)};margin-right:0.4rem;"></span>${escHtml(stageLabel(s))} — Term Growth</div>
@@ -181,7 +185,7 @@ function renderStatsPage() {
     </div>`}
   `).join('');
 
-  state.stages.forEach(stage => {
+  nonCetStages.forEach(stage => {
     let termLabels, termAvgs;
     if (stage.mode === 'semester') {
       termLabels = stage.terms.map(t => t.label);
@@ -222,10 +226,10 @@ function renderStatsPage() {
   // All-stages comparison + growth (uses stage order)
   // Each stage keeps its own colour here too, so the same stage is
   // recognisable whether you're looking at the bar, growth, or pie chart.
-  const allLabels = state.stages.map(s => stageLabel(s));
-  const allAvgs = state.stages.map(s => stageAvg(stageSubjects(s.id)));
-  const allColors = state.stages.map(s => stageColor(s.id));
-  const allColorsAlpha = state.stages.map(s => stageColorAlpha(s.id, 0.75));
+  const allLabels = nonCetStages.map(s => stageLabel(s));
+  const allAvgs = nonCetStages.map(s => stageAvg(stageSubjects(s.id)));
+  const allColors = nonCetStages.map(s => stageColor(s.id));
+  const allColorsAlpha = nonCetStages.map(s => stageColorAlpha(s.id, 0.75));
 
   makeChart('chartAllStagesBar', {
     type: 'bar',
@@ -247,8 +251,8 @@ function renderStatsPage() {
   });
 
   // ── Internal vs External — average by stage (grouped bar) ──
-  const intAvgs = state.stages.map(s => stageIntExtAvg(s.id).intPct);
-  const extAvgs = state.stages.map(s => stageIntExtAvg(s.id).extPct);
+  const intAvgs = nonCetStages.map(s => stageIntExtAvg(s.id).intPct);
+  const extAvgs = nonCetStages.map(s => stageIntExtAvg(s.id).extPct);
   makeChart('chartIntExtByStage', {
     type: 'bar',
     data: {
@@ -269,7 +273,7 @@ function renderStatsPage() {
   });
 
   // ── Pass rate by stage (bar) ──
-  const passRates = state.stages.map(s => stagePassRate(s.id));
+  const passRates = nonCetStages.map(s => stagePassRate(s.id));
   makeChart('chartPassRateByStage', {
     type: 'bar',
     data: { labels: allLabels, datasets: [{ label: 'Pass Rate %', data: passRates, backgroundColor: allColorsAlpha, borderColor: allColors, borderWidth: 1.5 }] },
@@ -317,10 +321,12 @@ function stagePassRate(stageId) {
 
 function renderCharts() {
   // Per-stage average bar — each stage shown in its own colour
-  const stageLabels = state.stages.map(s => stageLabel(s));
-  const stageAvgs = state.stages.map(s => stageAvg(stageSubjects(s.id)));
-  const stageBarColors = state.stages.map(s => stageColorAlpha(s.id, 0.75));
-  const stageBarBorders = state.stages.map(s => stageColor(s.id));
+  // (CET stages track rank, not %, so they're excluded here too)
+  const chartableStages = state.stages.filter(s => s.mode !== 'cet');
+  const stageLabels = chartableStages.map(s => stageLabel(s));
+  const stageAvgs = chartableStages.map(s => stageAvg(stageSubjects(s.id)));
+  const stageBarColors = chartableStages.map(s => stageColorAlpha(s.id, 0.75));
+  const stageBarBorders = chartableStages.map(s => stageColor(s.id));
   makeChart('chartStageComp', {
     type: 'bar',
     data: { labels: stageLabels, datasets: [{ label: 'Average %', data: stageAvgs, backgroundColor: stageBarColors, borderColor: stageBarBorders, borderWidth: 1.5 }] },

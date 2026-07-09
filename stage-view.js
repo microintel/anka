@@ -18,6 +18,20 @@ function renderStageView(stageId) {
 
   currentStageId = stageId;
   const def = STAGE_TYPES[stage.type] || STAGE_TYPES.custom;
+
+  // CET stages don't have subjects/terms — separate, simpler view.
+  if (stage.mode === 'cet') {
+    document.getElementById('stage-title').innerHTML = `${def.icon} ${escHtml(stageLabel(stage))} <em>Entrance Exam</em>`;
+    document.getElementById('stage-summary').textContent = 'Conversion score & rank';
+    document.getElementById('stage-controls').innerHTML = `
+      <button class="btn btn-solid" onclick="openEditCetModal('${stage.id}')"><i class="bi bi-pencil-fill"></i> Edit Details</button>
+      <button class="btn btn-danger" onclick="confirmDeleteStage('${stage.id}')"><i class="bi bi-trash3-fill"></i> Delete Stage</button>
+    `;
+    wrap.classList.remove('hide-marks');
+    wrap.innerHTML = renderCetStageBody(stage);
+    return;
+  }
+
   const subs = stageSubjects(stageId);
   const avg = stageAvg(subs);
 
@@ -70,6 +84,46 @@ function renderStageView(stageId) {
       </div>
     </div>`;
   }).join('');
+}
+
+function renderCetStageBody(stage) {
+  const c = stage.cet || {};
+  const hasData = c.conversion || c.rank || c.categoryRank;
+
+  if (!hasData) {
+    return emptyState('No CET details yet.', 'Click "Edit Details" to add your conversion score and rank');
+  }
+
+  return `<div class="subject-card-grid" style="--card-accent:var(--accent);--card-tint:var(--accent-glow);">
+    <div class="subject-card">
+      <div class="subject-card-head">
+        <div class="subject-card-name">Previous Stage Conversion</div>
+        <span class="exam-badge exam-regular">score</span>
+      </div>
+      <div class="subject-card-stats">
+        <div class="sc-stat sc-internal" style="grid-column:1 / -1;">
+          <span class="sc-stat-label">Conversion Score</span>
+          <div class="sc-stat-value" style="font-size:1.4rem;font-weight:700;color:var(--text-primary);">${c.conversion ? fmt2(c.conversion) + ' / 100' : '—'}</div>
+        </div>
+      </div>
+    </div>
+    <div class="subject-card">
+      <div class="subject-card-head">
+        <div class="subject-card-name">Current Ranking</div>
+        <span class="exam-badge exam-regular">rank</span>
+      </div>
+      <div class="subject-card-stats">
+        <div class="sc-stat sc-internal">
+          <span class="sc-stat-label">Overall Rank</span>
+          <div class="sc-stat-value" style="font-size:1.4rem;font-weight:700;color:var(--text-primary);">${c.rank ? '#' + escHtml(String(c.rank)) : '—'}</div>
+        </div>
+        <div class="sc-stat sc-external">
+          <span class="sc-stat-label">Category Rank</span>
+          <div class="sc-stat-value" style="font-size:1.4rem;font-weight:700;color:var(--text-primary);">${c.categoryRank ? '#' + escHtml(String(c.categoryRank)) : '—'}</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
 }
 
 function emptyState(text, sub) {

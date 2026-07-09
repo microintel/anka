@@ -13,6 +13,16 @@ function renderDashboard() {
 
   cardsEl.innerHTML = state.stages.map((stage, i) => {
     const def = STAGE_TYPES[stage.type] || STAGE_TYPES.custom;
+    if (stage.mode === 'cet') {
+      const c = stage.cet || {};
+      return `
+      <div class="stage-card" onclick="showSection('stage:${stage.id}')">
+        <div class="stage-card-label">Stage ${i + 1}</div>
+        <div class="stage-card-name">${def.icon} ${escHtml(stageLabel(stage))}</div>
+        <div class="stage-card-pct">${c.rank ? '#' + escHtml(String(c.rank)) : '—'}</div>
+        <div class="stage-card-meta">${c.conversion ? fmt2(c.conversion) + '/100 conversion' : 'No details yet'}</div>
+      </div>`;
+    }
     const subs = stageSubjects(stage.id);
     const avg = stageAvg(subs);
     return `

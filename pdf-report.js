@@ -202,6 +202,10 @@ async function generatePDFReport() {
   // ── Stage Order overview table ──
   y = sectionTitle(y, 'Stage Order & Summary');
   const orderRows = state.stages.map((s, i) => {
+    if (s.mode === 'cet') {
+      const c = s.cet || {};
+      return [String(i + 1), stageLabel(s), 'Entrance Exam', c.rank ? 'Rank #' + c.rank : '—', c.conversion ? c.conversion + '/100' : '—'];
+    }
     const subs = stageSubjects(s.id);
     const avg = stageAvg(subs);
     return [String(i + 1), stageLabel(s), s.mode === 'annual' ? 'Annual' : 'Semester-wise', String(subs.length), avg + '%'];
@@ -231,6 +235,22 @@ async function generatePDFReport() {
 
   // ── PER-STAGE DETAIL ────────────────────────────────
   state.stages.forEach((stage, idx) => {
+    if (stage.mode === 'cet') {
+      const c = stage.cet || {};
+      y = ensureSpace(y, 20);
+      y = sectionTitle(y, `${idx + 1}. ${stageLabel(stage)}  —  Entrance Exam`);
+      doc.autoTable({
+        startY: y,
+        margin: { left: MX, right: MX },
+        head: [['Previous Stage Conversion', 'Overall Rank', 'Category Rank']],
+        body: [[c.conversion ? c.conversion + '/100' : '—', c.rank ? '#' + c.rank : '—', c.categoryRank ? '#' + c.categoryRank : '—']],
+        theme: 'plain',
+        styles: { font: 'helvetica', fontSize: 8.8, textColor: PDF_COLORS.ink, cellPadding: { top: 2.2, bottom: 2.2, left: 2, right: 2 } },
+        headStyles: { fillColor: PDF_COLORS.dark, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+      });
+      y = doc.lastAutoTable.finalY + 10;
+      return;
+    }
     const subs = stageSubjects(stage.id);
     if (!subs.length) return;
     const avg = stageAvg(subs);
