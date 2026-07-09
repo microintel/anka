@@ -24,6 +24,46 @@ function gradeColorPdf(p) {
   return PDF_COLORS.low;
 }
 
+// Loads an (often cross-origin) image URL and returns a PNG data URL that's
+// cropped into a circle, with the surrounding square filled to match the
+// panel background so it blends in seamlessly once placed in the PDF.
+function loadImageAsCircularDataURL(url, size, bgColor) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        // Fill background to match the panel so any anti-aliased edge blends in
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, size, size);
+
+        // Clip to a circle, then cover-fit the source image inside it
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+
+        const scale = Math.max(size / img.width, size / img.height);
+        const iw = img.width * scale, ih = img.height * scale;
+        ctx.drawImage(img, (size - iw) / 2, (size - ih) / 2, iw, ih);
+        ctx.restore();
+
+        resolve(canvas.toDataURL('image/png'));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 async function generatePDFReport() {
   if (!state.stages.length) { toast('Add a stage with subjects first'); return; }
   if (typeof window.jspdf === 'undefined') { toast('PDF library failed to load'); return; }
@@ -106,14 +146,27 @@ async function generatePDFReport() {
   doc.setLineWidth(0.3);
   doc.roundedRect(MX, y, PW - MX * 2, panelH, 2, 2, 'FD');
 
-  // avatar circle
+  // avatar circle — use the signed-in Google photo if available, else initials
   const cx = MX + 13, cy = y + panelH / 2, r = 9;
-  setFill(PDF_COLORS.accent);
-  doc.circle(cx, cy, r, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  setColor([255, 255, 255]);
-  doc.text(((userProfile.name || 'U')[0] || 'U').toUpperCase(), cx, cy + 1.4, { align: 'center' });
+  let avatarDataUrl = null;
+  const photoURL = currentUser && currentUser.photoURL;
+  if (photoURL) {
+    try {
+      avatarDataUrl = await loadImageAsCircularDataURL(photoURL, 160, `rgb(${PDF_COLORS.panel.join(',')})`);
+    } catch (e) {
+      avatarDataUrl = null; // CORS or network failure — fall back to initials below
+    }
+  }
+  if (avatarDataUrl) {
+    doc.addImage(avatarDataUrl, 'PNG', cx - r, cy - r, r * 2, r * 2);
+  } else {
+    setFill(PDF_COLORS.accent);
+    doc.circle(cx, cy, r, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    setColor([255, 255, 255]);
+    doc.text(((userProfile.name || 'U')[0] || 'U').toUpperCase(), cx, cy + 1.4, { align: 'center' });
+  }
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
