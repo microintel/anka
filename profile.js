@@ -5,6 +5,7 @@ function setTheme(mode) {
   document.body.classList.toggle('theme-light', mode === 'light');
   localStorage.setItem('theme', mode);
   updateThemeButtons();
+  reapplyAccentColor(); // accent-dim differs between light/dark, recompute for new theme
   if (typeof renderCharts === 'function' && currentSection === 'charts') renderCharts();
   if (typeof renderDashCharts === 'function' && currentSection === 'dashboard') renderDashCharts();
 }
@@ -18,6 +19,89 @@ function updateThemeButtons() {
     db.classList.toggle('active', mode === 'dark');
   }
 }
+
+// ══════════════════════════════════════════════════
+//  ACCENT COLOUR (user-selectable brand colour)
+// ══════════════════════════════════════════════════
+const ACCENT_PRESETS = [
+  { name: 'Purple', hex: '#7c5cff' },
+  { name: 'Blue',   hex: '#3b82f6' },
+  { name: 'Cyan',   hex: '#06b6d4' },
+  { name: 'Green',  hex: '#10b981' },
+  { name: 'Amber',  hex: '#f59e0b' },
+  { name: 'Orange', hex: '#f97316' },
+  { name: 'Red',    hex: '#ef4444' },
+  { name: 'Slate',  hex: '#64748b' },
+];
+
+function hexToRgb(hex) {
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const num = parseInt(h, 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+}
+
+function mixHex(hex, withHex, weight) {
+  const c1 = hexToRgb(hex), c2 = hexToRgb(withHex);
+  return rgbToHex(
+    c1.r + (c2.r - c1.r) * weight,
+    c1.g + (c2.g - c1.g) * weight,
+    c1.b + (c2.b - c1.b) * weight
+  );
+}
+
+function applyAccentColor(hex, persist = true) {
+  const { r, g, b } = hexToRgb(hex);
+  const isLight = document.body.classList.contains('theme-light');
+  const light = mixHex(hex, '#ffffff', 0.32);
+  const dim = isLight ? mixHex(hex, '#ffffff', 0.68) : mixHex(hex, '#000000', 0.45);
+  const glow = `rgba(${r},${g},${b},0.14)`;
+
+  document.body.style.setProperty('--accent', hex);
+  document.body.style.setProperty('--accent-light', light);
+  document.body.style.setProperty('--accent-dim', dim);
+  document.body.style.setProperty('--accent-glow', glow);
+
+  if (persist) localStorage.setItem('accentColor', hex);
+  updateAccentSwatches(hex);
+}
+
+function setAccentColor(hex) {
+  applyAccentColor(hex, true);
+}
+
+function reapplyAccentColor() {
+  const hex = localStorage.getItem('accentColor') || ACCENT_PRESETS[0].hex;
+  applyAccentColor(hex, false);
+}
+
+function renderAccentSwatches() {
+  const row = document.getElementById('accentSwatchRow');
+  if (!row) return;
+  const current = localStorage.getItem('accentColor') || ACCENT_PRESETS[0].hex;
+  row.innerHTML = ACCENT_PRESETS.map(p =>
+    `<button type="button" class="accent-swatch${p.hex.toLowerCase() === current.toLowerCase() ? ' active' : ''}" style="background:${p.hex}" title="${p.name}" data-hex="${p.hex}" onclick="setAccentColor('${p.hex}')"></button>`
+  ).join('');
+  const customPicker = document.getElementById('accentCustomPicker');
+  if (customPicker) customPicker.value = current;
+}
+
+function updateAccentSwatches(hex) {
+  const row = document.getElementById('accentSwatchRow');
+  if (!row) return;
+  row.querySelectorAll('.accent-swatch').forEach(sw => {
+    sw.classList.toggle('active', sw.dataset.hex.toLowerCase() === hex.toLowerCase());
+  });
+  const customPicker = document.getElementById('accentCustomPicker');
+  if (customPicker) customPicker.value = hex;
+}
+
+// Apply saved accent colour immediately on load (before first paint of themed content)
+reapplyAccentColor();
 
 // ══════════════════════════════════════════════════
 //  USER PROFILE / ACCOUNT PAGE  (name + email only — no photo stored)
@@ -142,7 +226,15 @@ function renderAccountHighlight() {
 function renderAccountPage() {
   const initial = (userProfile.name || 'U')[0].toUpperCase();
 
-  document.getElementById('profileAvatar').textContent = initial;
+  const avatarEl = document.getElementById('profileAvatar');
+  const photoURL = currentUser && currentUser.photoURL;
+  if (photoURL) {
+    // Signed in with Google (or another provider that supplies a photo) — show it.
+    avatarEl.innerHTML = `<img src="${escHtml(photoURL)}" alt="Profile photo" referrerpolicy="no-referrer" onerror="this.parentElement.textContent='${initial}';">`;
+  } else {
+    avatarEl.textContent = initial;
+  }
+
   document.getElementById('profileName').textContent = userProfile.name || 'User';
   document.getElementById('profileEmail').textContent = userProfile.email || 'user@example.com';
   document.getElementById('profileDate').textContent = 'Member since ' + userProfile.createdDate;
@@ -155,6 +247,7 @@ function renderAccountPage() {
 
   renderAccountHighlight();
   updateThemeButtons();
+  renderAccentSwatches();
   renderCloudAuthSection();
   }
 

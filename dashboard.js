@@ -77,6 +77,28 @@ function renderDashboard() {
   renderDashCharts();
 }
 
+// ══════════════════════════════════════════════════
+//  HOW TO USE (home screen info icon)
+// ══════════════════════════════════════════════════
+function showHowToUse() {
+  openModal('How to Use Anka', `
+    <div style="font-family: var(--font-body); font-size: 0.85rem; color: var(--text-secondary); line-height: 1.65;">
+      <ol style="margin:0 0 0.9rem 1.1rem; padding:0; color:var(--text-secondary); line-height:1.75;">
+        <li style="margin-bottom:0.6rem;"><strong style="color:var(--text-primary);"><i class="bi bi-plus-circle-fill" style="color:var(--accent);"></i> Add a stage</strong> — tap <strong>Add</strong> and pick a type (SSLC, Diploma, Engineering, PUC, Medical, ITI, or Custom), then choose annual or semester-wise.</li>
+        <li style="margin-bottom:0.6rem;"><strong style="color:var(--text-primary);"><i class="bi bi-pencil-square" style="color:var(--accent);"></i> Enter your marks</strong> — open the stage and add subjects with internal/external marks; Anka works out totals, percentages and grades automatically.</li>
+        <li style="margin-bottom:0.6rem;"><strong style="color:var(--text-primary);"><i class="bi bi-bar-chart-line-fill" style="color:var(--accent);"></i> Track your progress</strong> — check <strong>Statistics</strong> and <strong>Charts</strong> anytime to see trends, compare stages, and reorder them however you like.</li>
+        <li style="margin-bottom:0.6rem;"><strong style="color:var(--text-primary);"><i class="bi bi-person-check-fill" style="color:var(--accent);"></i> Sign in to sync</strong> — from <strong>Account</strong>, sign in with Google or email/password so your data can travel with you across devices.</li>
+        <li style="margin-bottom:0.6rem;"><strong style="color:var(--text-primary);"><i class="bi bi-cloud-arrow-up-fill" style="color:var(--accent);"></i> Back up to the cloud</strong> — tap <strong>Backup to Cloud</strong> to save everything to your account; <strong>Restore from Cloud</strong> pulls it back down on any device you sign into. <em>Each backup fully replaces the previous cloud copy, so make sure this device has your latest edits before backing up.</em></li>
+        <li style="margin-bottom:0;"><strong style="color:var(--text-primary);"><i class="bi bi-file-earmark-arrow-down-fill" style="color:var(--accent);"></i> Export, print, or reset</strong> — use <strong>Export</strong> or <strong>PDF Report</strong> to keep an offline copy, or <strong>Factory Reset</strong> to wipe this device's local data without touching your cloud backup.</li>
+      </ol>
+      <p style="margin:0; padding-top:0.85rem; border-top:1px solid var(--border); color:var(--text-secondary);">
+        <strong style="color:var(--accent);">Tip:</strong> you can revisit this guide anytime from the <i class="bi bi-info-circle"></i> icon here on Home, or from <strong>Account → About Anka</strong>.
+      </p>
+    </div>
+  `);
+  setModalFooter([{ label: 'Got it', cls: 'btn-solid', fn: 'closeModal()' }]);
+}
+
 function animateCounters() {
   document.querySelectorAll('.counter[data-target]').forEach(el => {
     const target = parseFloat(el.dataset.target);

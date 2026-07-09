@@ -39,7 +39,12 @@
     <!-- ── DASHBOARD ── -->
     <section class="section active" id="section-dashboard">
       <div class="dash-header">
-        <div class="dash-title">Your Academic <span>Record.</span></div>
+        <div class="dash-header-top">
+          <div class="dash-title">Your Academic <span>Record.</span></div>
+          <button class="info-icon-btn" onclick="showHowToUse()" title="How to use Anka" aria-label="How to use Anka">
+            <i class="bi bi-info-circle"></i>
+          </button>
+        </div>
         <div class="deco-line"></div>
         <div class="dash-subtitle">All stages · All marks · Nothing lost</div>
       </div>
@@ -48,9 +53,9 @@
       <div class="dash-stats" id="dash-stats"></div>
 
       <div class="chart-row" style="grid-template-columns:1fr;">
-        <div class="chart-card chart-card-center">
+        <div class="chart-card">
           <div class="chart-title">Grade Distribution — All Subjects</div>
-          <div class="chart-wrap" style="height:280px;max-width:380px;margin:0 auto;"><canvas id="chartDashPie"></canvas></div>
+          <div class="grade-dist-grid" id="dash-grade-dist"></div>
         </div>
       </div>
     </section>
@@ -85,6 +90,24 @@
         <div class="chart-card chart-card-center" style="flex:1 1 100%;">
           <div class="chart-title">All Stages — Share of Average %</div>
           <div class="chart-wrap" style="height:280px;max-width:420px;margin:0 auto;"><canvas id="chartStatsAllPie"></canvas></div>
+        </div>
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-card">
+          <div class="chart-title">Internal vs External — Average by Stage</div>
+          <div class="chart-wrap" style="height:240px;"><canvas id="chartIntExtByStage"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Pass Rate by Stage</div>
+          <div class="chart-wrap" style="height:240px;"><canvas id="chartPassRateByStage"></canvas></div>
+        </div>
+      </div>
+
+      <div class="chart-row" style="grid-template-columns:1fr;">
+        <div class="chart-card">
+          <div class="chart-title">Best &amp; Weakest Subjects — Overall</div>
+          <div class="chart-wrap" style="height:280px;"><canvas id="chartTopBottomSubjects"></canvas></div>
         </div>
       </div>
     </section>
@@ -174,7 +197,7 @@
 
         <!-- View Mode -->
         <div class="profile-view" id="profileView">
-          <div class="profile-section">
+          <div class="profile-hero">
             <div class="profile-header">
               <div class="profile-avatar" id="profileAvatar">U</div>
               <div class="profile-info">
@@ -185,10 +208,25 @@
             </div>
           </div>
           <div class="profile-section" id="cloudAuthSection"></div>
-          <div class="account-highlight-card" id="accountHighlight"></div>
 
-          <div style="margin-bottom: 1.5rem;">
-            <div class="account-label"><i class="bi bi-bar-chart-fill"></i> Academic Statistics</div>
+          <!-- Appearance — moved up top, right after identity -->
+          <div class="profile-section">
+            <div class="settings-card-title"><i class="bi bi-palette-fill"></i> Appearance</div>
+            <div class="theme-switch">
+              <button class="btn btn-ghost theme-btn" id="themeLightBtn" onclick="setTheme('light')"><i class="bi bi-sun-fill"></i> Light</button>
+              <button class="btn btn-ghost theme-btn" id="themeDarkBtn" onclick="setTheme('dark')"><i class="bi bi-moon-stars-fill"></i> Dark</button>
+            </div>
+
+            <div class="account-label" style="margin-top:1rem;">Accent Colour</div>
+            <div class="accent-swatch-row" id="accentSwatchRow"></div>
+            <div class="accent-custom-row">
+              <input type="color" id="accentCustomPicker" class="accent-custom-input" value="#7c5cff" oninput="setAccentColor(this.value)">
+              <span class="accent-custom-label">Custom colour</span>
+            </div>
+          </div>
+
+          <div class="profile-section">
+            <div class="settings-card-title"><i class="bi bi-bar-chart-fill"></i> Academic Statistics</div>
             <div class="stats-grid">
               <div class="stat-mini">
                 <div class="stat-mini-value" id="statStages">-</div>
@@ -205,49 +243,54 @@
             </div>
           </div>
 
-          <div style="margin-bottom: 1.5rem;">
-            <div class="account-label"><i class="bi bi-palette-fill"></i> Appearance</div>
-            <div class="theme-switch">
-              <button class="btn btn-ghost theme-btn" id="themeLightBtn" onclick="setTheme('light')"><i class="bi bi-sun-fill"></i> Light</button>
-              <button class="btn btn-ghost theme-btn" id="themeDarkBtn" onclick="setTheme('dark')"><i class="bi bi-moon-stars-fill"></i> Dark</button>
-            </div>
-          </div>
-
-          <div style="margin-bottom: 1.5rem;">
-            <div class="account-label"><i class="bi bi-hdd-fill"></i> Your Data</div>
-            <div class="account-actions">
-              <button class="btn btn-ghost btn-sm" onclick="exportJSON()"><i class="bi bi-download"></i> Export</button>
-              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()"><i class="bi bi-upload"></i> Import</button>
-              <button class="btn btn-solid btn-sm" onclick="generatePDFReport()"><i class="bi bi-file-earmark-pdf-fill"></i> PDF Report</button>
-              <button class="btn btn-danger btn-sm" onclick="confirmFactoryReset()"><i class="bi bi-exclamation-triangle-fill"></i> Factory Reset</button>
-            </div>
-          </div>
-
-          <div class="developer-credit">
-           Powerd By <b>Microintel</b>, <b>Google's Firebase</b>
-          </div>
-
-          <div style="margin-bottom: 1rem;"></div>
-
           <div class="profile-section">
-            <div class="account-label" style="color: var(--accent);"><i class="bi bi-info-circle-fill"></i> About Anka</div>
-            <div style="font-family: var(--font-body); font-size: 0.8rem; color: var(--text-secondary); line-height: 1.65;">
-              <p style="margin-bottom: 0.75rem;">
-              <strong style="color:var(--text-primary);">How it works:</strong>
-              </p>
-              <ol style="margin:0 0 0.9rem 1.1rem; padding:0; color:var(--text-secondary); line-height:1.7;">
-              <li style="margin-bottom:0.5rem;"><strong style="color:var(--text-primary);">Add a stage</strong> — tap <strong>Add</strong> and pick a type (SSLC, Diploma, Engineering, PUC, Medical, ITI, or Custom), then choose annual or semester-wise.</li>
-              <li style="margin-bottom:0.5rem;"><strong style="color:var(--text-primary);">Enter your marks</strong> — open the stage and add subjects with internal/external marks; Anka works out totals, percentages and grades automatically.</li>
-              <li style="margin-bottom:0.5rem;"><strong style="color:var(--text-primary);">Track your progress</strong> — check <strong>Statistics</strong> and <strong>Charts</strong> anytime to see trends, compare stages, and reorder them however you like.</li>
-              <li style="margin-bottom:0.5rem;"><strong style="color:var(--text-primary);">Sign in to sync</strong> — from <strong>Account</strong>, sign in with Google or email/password so your data can travel with you across devices.</li>
-              <li style="margin-bottom:0.5rem;"><strong style="color:var(--text-primary);">Back up to the cloud</strong> — tap <strong>Backup to Cloud</strong> to save everything to your account; <strong>Restore from Cloud</strong> pulls it back down on any device you sign into. <em>Each backup fully replaces the previous cloud copy, so make sure this device has your latest edits before backing up — especially if you use Anka on more than one device.</em></li>
-              <li style="margin-bottom:0.5rem;"><strong style="color:var(--text-primary);">Export, print, or reset</strong> — use <strong>Export</strong> or <strong>PDF Report</strong> to keep an offline copy, or <strong>Factory Reset</strong> to wipe this device's local data without touching your cloud backup.</li>
-              </ol>
-              <p style="margin-bottom: 0.6rem;">
-              <strong style="color:var(--text-primary);">Why Anka exists:</strong> report cards, mark sheets, and grade slips pile up across years and get lost between phones, folders, and forgotten drawers. Anka was built so a student never has to dig through old photos or paperwork to answer a simple question — <em>"what were my marks in that subject, that semester?"</em> One record, from your first stage to your last, always at hand.
-              </p>
-              <p style="color: var(--accent); margin-top: 0.75rem;"><strong>Developed By Microintel</strong></p>
+            <div class="settings-card-title"><i class="bi bi-hdd-fill"></i> Your Data</div>
+            <div class="settings-list">
+              <button class="settings-row" onclick="exportJSON()">
+                <span class="settings-row-icon"><i class="bi bi-download"></i></span>
+                <span class="settings-row-label">Export Data</span>
+                <i class="bi bi-chevron-right settings-row-chevron"></i>
+              </button>
+              <button class="settings-row" onclick="document.getElementById('importFile').click()">
+                <span class="settings-row-icon"><i class="bi bi-upload"></i></span>
+                <span class="settings-row-label">Import Data</span>
+                <i class="bi bi-chevron-right settings-row-chevron"></i>
+              </button>
+              <button class="settings-row" onclick="generatePDFReport()">
+                <span class="settings-row-icon"><i class="bi bi-file-earmark-pdf-fill"></i></span>
+                <span class="settings-row-label">PDF Report</span>
+                <i class="bi bi-chevron-right settings-row-chevron"></i>
+              </button>
+              <button class="settings-row danger" onclick="confirmFactoryReset()">
+                <span class="settings-row-icon"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                <span class="settings-row-label">Factory Reset</span>
+                <i class="bi bi-chevron-right settings-row-chevron"></i>
+              </button>
             </div>
+          </div>
+
+          <!-- About Anka — showcase card -->
+          <div class="profile-section">
+            <div class="about-hero">
+              <div class="about-hero-logo">Anka</div>
+              <div class="about-hero-tag">One record for your whole academic journey — every stage, every mark, always at hand.</div>
+            </div>
+            <div class="about-features">
+              <div class="about-feature">
+                <i class="bi bi-mortarboard-fill"></i>
+                <div><strong>Every stage, one place</strong><span>SSLC, PUC, Diploma, Engineering, Medical, ITI, or Custom — all tracked together.</span></div>
+              </div>
+              <div class="about-feature">
+                <i class="bi bi-calculator-fill"></i>
+                <div><strong>Automatic calculations</strong><span>Add marks and Anka works out totals, percentages, and grades instantly.</span></div>
+              </div>
+              <div class="about-feature">
+                <i class="bi bi-cloud-check-fill"></i>
+                <div><strong>Synced & backed up</strong><span>Sign in to back up your record to the cloud and pick it up on any device.</span></div>
+              </div>
+            </div>
+            <button class="btn btn-ghost btn-sm about-guide-btn" onclick="showHowToUse()"><i class="bi bi-question-circle"></i> How to Use Anka</button>
+            <div class="about-footer">Developed by <strong>Microintel</strong> · Powered by <strong>Google Firebase</strong></div>
           </div>
         </div>
 
