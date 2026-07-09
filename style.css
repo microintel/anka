@@ -54,7 +54,7 @@ body.theme-light {
 body.theme-light .marks-badge { color: #1b1e2c; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; touch-action: manipulation; }
 
 body {
   background: var(--bg-deep);
@@ -65,6 +65,7 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   transition: background 0.2s, color 0.2s;
+  touch-action: manipulation;
 }
 
 /* ── SCROLLBAR ── */
