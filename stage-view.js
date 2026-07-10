@@ -34,9 +34,11 @@ function renderStageView(stageId) {
 
   const subs = stageSubjects(stageId);
   const avg = stageAvg(subs);
+  const total = stageTotal(stageId);
+  const gpa = stageGPA(stageId);
 
   document.getElementById('stage-title').innerHTML = `${def.icon} ${escHtml(stageLabel(stage))} <em>${stage.mode === 'annual' ? 'Annual' : 'Semester-wise'}</em>`;
-  document.getElementById('stage-summary').textContent = `${subs.length} subject${subs.length !== 1 ? 's' : ''} · ${avg}% overall`;
+  document.getElementById('stage-summary').textContent = `${subs.length} subject${subs.length !== 1 ? 's' : ''} · ${avg}% overall · Total ${fmt2(total.scored)}/${fmt2(total.max)} · CGPA ${fmt2(gpa)}`;
 
   const controls = document.getElementById('stage-controls');
   controls.innerHTML = `
@@ -65,6 +67,8 @@ function renderStageView(stageId) {
   wrap.innerHTML = stage.terms.map((term, idx) => {
     const tSubs = termSubjects(stage.id, term.id);
     const tAvg = termAvg(stage.id, term.id);
+    const tTotal = termTotal(stage.id, term.id);
+    const tGpa = termGPA(stage.id, term.id);
     return `
     <div class="semester-block" id="term-block-${term.id}">
       <div class="semester-header" id="term-hdr-${term.id}" onclick="toggleTerm('${term.id}')">
@@ -74,6 +78,8 @@ function renderStageView(stageId) {
           <span style="font-family:var(--font-mono);font-size:0.6rem;color:var(--text-dim);">${tSubs.length} subjects</span>
         </div>
         <div style="display:flex;align-items:center;gap:0.75rem;">
+          <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-dim);">${fmt2(tTotal.scored)}/${fmt2(tTotal.max)}</span>
+          <span style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-dim);">GPA ${fmt2(tGpa)}</span>
           <span class="semester-avg">${tAvg}%</span>
           <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openAddSubjectModal('${stage.id}','${term.id}')"><i class="bi bi-plus-lg"></i> Subject</button>
           <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();confirmDeleteTerm('${stage.id}','${term.id}')"><i class="bi bi-x-lg"></i></button>

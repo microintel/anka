@@ -100,6 +100,53 @@ function termAvg(stageId, termId) {
   return stageAvg(termSubjects(stageId, termId));
 }
 
+// ══════════════════════════════════════════════════
+//  TOTALS & GPA/CGPA
+// ══════════════════════════════════════════════════
+
+// Marks total (scored/max), excluding audit subjects (pass/fail only, not
+// counted toward marks totals or GPA).
+function subjectsTotal(subjects) {
+  const graded = subjects.filter(s => s.subjectType !== 'audit');
+  let scored = 0, max = 0;
+  graded.forEach(s => { const t = calcSubjectTotal(s); scored += t.scored; max += t.max; });
+  return { scored, max, count: graded.length };
+}
+
+// Grade point on a 10-point scale, mirroring the same percentage bands used
+// by grade() (O=10, A+=9, A=8, B+=7, B=6, C=5, F=0).
+function gradePoint(p) {
+  if (p >= 90) return 10;
+  if (p >= 80) return 9;
+  if (p >= 70) return 8;
+  if (p >= 60) return 7;
+  if (p >= 50) return 6;
+  if (p >= 40) return 5;
+  return 0;
+}
+
+// GPA for a set of subjects: the average grade point across graded subjects
+// (audit subjects excluded). Returned to 2 decimal places.
+function subjectsGPA(subjects) {
+  const graded = subjects.filter(s => s.subjectType !== 'audit');
+  if (!graded.length) return 0;
+  const sum = graded.reduce((acc, s) => {
+    const t = calcSubjectTotal(s);
+    return acc + gradePoint(pct(t.scored, t.max));
+  }, 0);
+  return Math.round((sum / graded.length) * 100) / 100;
+}
+
+function stageTotal(stageId) { return subjectsTotal(stageSubjects(stageId)); }
+function termTotal(stageId, termId) { return subjectsTotal(termSubjects(stageId, termId)); }
+function stageGPA(stageId) { return subjectsGPA(stageSubjects(stageId)); }
+function termGPA(stageId, termId) { return subjectsGPA(termSubjects(stageId, termId)); }
+
+// Overall CGPA across every stage (average grade point over all graded subjects)
+function overallCGPA() {
+  return subjectsGPA(state.subjects);
+}
+
 function getStage(stageId) {
   return state.stages.find(s => s.id === stageId);
 }

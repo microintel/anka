@@ -25,12 +25,13 @@ function renderDashboard() {
     }
     const subs = stageSubjects(stage.id);
     const avg = stageAvg(subs);
+    const gpa = stageGPA(stage.id);
     return `
     <div class="stage-card" onclick="showSection('stage:${stage.id}')">
       <div class="stage-card-label">Stage ${i + 1}</div>
       <div class="stage-card-name">${def.icon} ${escHtml(stageLabel(stage))}</div>
       <div class="stage-card-pct"><span class="counter" data-target="${avg}">0</span>%</div>
-      <div class="stage-card-meta">${subs.length} subject${subs.length !== 1 ? 's' : ''} · ${stage.mode === 'annual' ? 'Annual' : stage.terms.length + ' semesters'}</div>
+      <div class="stage-card-meta">${subs.length} subject${subs.length !== 1 ? 's' : ''} · ${stage.mode === 'annual' ? 'Annual' : stage.terms.length + ' semesters'} · CGPA ${fmt2(gpa)}</div>
       <div class="progress-bar"><div class="progress-bar-fill" style="width:${avg}%"></div></div>
     </div>`;
   }).join('');
@@ -66,6 +67,11 @@ function renderDashboard() {
       <div class="stat-label">Pass Rate</div>
       <div class="stat-value">${passRate}%</div>
       <div class="stat-sub">${passCount} of ${total} passing</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Overall CGPA</div>
+      <div class="stat-value">${fmt2(overallCGPA())}</div>
+      <div class="stat-sub">10-point scale</div>
     </div>
     <div class="stat-cell">
       <div class="stat-label">Stages Tracked</div>

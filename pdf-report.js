@@ -182,8 +182,9 @@ async function generatePDFReport() {
     { label: 'STAGES', value: String(state.stages.length), color: PDF_COLORS.ink },
     { label: 'SUBJECTS', value: String(state.subjects.length), color: PDF_COLORS.ink },
     { label: 'OVERALL', value: overallPct + '%', color: PDF_COLORS.accent },
+    { label: 'CGPA', value: fmt2(overallCGPA()), color: PDF_COLORS.gold },
   ];
-  const statW = 26;
+  const statW = 21;
   let sx = PW - MX - statW * stats.length;
   stats.forEach(st => {
     doc.setFont('helvetica', 'bold');
@@ -204,16 +205,18 @@ async function generatePDFReport() {
   const orderRows = state.stages.map((s, i) => {
     if (s.mode === 'cet') {
       const c = s.cet || {};
-      return [String(i + 1), stageLabel(s), 'Entrance Exam', c.rank ? 'Rank #' + c.rank : '—', c.conversion ? c.conversion + '/100' : '—'];
+      return [String(i + 1), stageLabel(s), 'Entrance Exam', c.rank ? 'Rank #' + c.rank : '—', c.conversion ? c.conversion + '/100' : '—', '—', '—'];
     }
     const subs = stageSubjects(s.id);
     const avg = stageAvg(subs);
-    return [String(i + 1), stageLabel(s), s.mode === 'annual' ? 'Annual' : 'Semester-wise', String(subs.length), avg + '%'];
+    const total = stageTotal(s.id);
+    const gpa = stageGPA(s.id);
+    return [String(i + 1), stageLabel(s), s.mode === 'annual' ? 'Annual' : 'Semester-wise', String(subs.length), `${fmt2(total.scored)}/${fmt2(total.max)}`, avg + '%', fmt2(gpa)];
   });
   doc.autoTable({
     startY: y,
     margin: { left: MX, right: MX },
-    head: [['#', 'Stage', 'Mode', 'Subjects', 'Avg %']],
+    head: [['#', 'Stage', 'Mode', 'Subjects', 'Total', 'Avg %', 'CGPA']],
     body: orderRows,
     theme: 'plain',
     styles: { font: 'helvetica', fontSize: 8.8, textColor: PDF_COLORS.ink, cellPadding: { top: 2.2, bottom: 2.2, left: 2, right: 2 } },
@@ -221,13 +224,18 @@ async function generatePDFReport() {
     alternateRowStyles: { fillColor: PDF_COLORS.panel },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
-      3: { cellWidth: 22, halign: 'center' },
-      4: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 18, halign: 'center' },
+      4: { cellWidth: 24, halign: 'center' },
+      5: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+      6: { cellWidth: 16, halign: 'center', fontStyle: 'bold' },
     },
     didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 4) {
+      if (data.section === 'body' && data.column.index === 5) {
         const p = parseFloat(data.cell.text[0]);
-        data.cell.styles.textColor = gradeColorPdf(p);
+        if (!isNaN(p)) data.cell.styles.textColor = gradeColorPdf(p);
+      }
+      if (data.section === 'body' && data.column.index === 6) {
+        data.cell.styles.textColor = PDF_COLORS.gold;
       }
     },
   });
@@ -254,13 +262,21 @@ async function generatePDFReport() {
     const subs = stageSubjects(stage.id);
     if (!subs.length) return;
     const avg = stageAvg(subs);
+    const sTotal = stageTotal(stage.id);
+    const sGpa = stageGPA(stage.id);
 
     y = ensureSpace(y, 24);
-    y = sectionTitle(y, `${idx + 1}. ${stageLabel(stage)}  —  ${stage.mode === 'annual' ? 'Annual' : 'Semester-wise'}  ·  ${avg}% overall`);
+    y = sectionTitle(y, `${idx + 1}. ${stageLabel(stage)}  —  ${stage.mode === 'annual' ? 'Annual' : 'Semester-wise'}  ·  ${avg}% overall  ·  Total ${fmt2(sTotal.scored)}/${fmt2(sTotal.max)}  ·  CGPA ${fmt2(sGpa)}`);
 
     const groups = stage.mode === 'annual'
       ? [{ label: null, subs: termSubjects(stage.id, stage.terms[0]?.id) }]
-      : stage.terms.map(t => ({ label: t.label, avg: termAvg(stage.id, t.id), subs: termSubjects(stage.id, t.id) })).filter(g => g.subs.length);
+      : stage.terms.map(t => ({
+          label: t.label,
+          avg: termAvg(stage.id, t.id),
+          total: termTotal(stage.id, t.id),
+          gpa: termGPA(stage.id, t.id),
+          subs: termSubjects(stage.id, t.id),
+        })).filter(g => g.subs.length);
 
     groups.forEach(g => {
       if (g.label) {
@@ -268,7 +284,7 @@ async function generatePDFReport() {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
         setColor(PDF_COLORS.gold);
-        doc.text(`${g.label} — ${g.avg}%`, MX, y);
+        doc.text(`${g.label} — ${g.avg}%  ·  Total ${fmt2(g.total.scored)}/${fmt2(g.total.max)}  ·  GPA ${fmt2(g.gpa)}`, MX, y);
         y += 4;
       }
       y = drawSubjectTable(doc, g.subs, y, MX, PW);
