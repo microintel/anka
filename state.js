@@ -3,12 +3,13 @@
 // ══════════════════════════════════════════════════
 let DB;
 const DB_NAME = 'redundant_vault_v2'; // internal DB name kept stable so existing data isn't lost on rename
-const DB_VER  = 1;
+const DB_VER  = 2; // v2 adds the 'attendance' store
 
 let state = {
   stages: [],    // [{id, type, label, mode:'annual'|'semester', terms:[{id,label}]}]
-  subjects: []   // [{id, stageId, termId, name, subjectType:'theory'|'practical'|'audit',
+  subjects: [],  // [{id, stageId, termId, name, subjectType:'theory'|'practical'|'audit',
                  //   internal:{min,max,obtained}, external:{min,max,obtained}}]
+  attendance: [] // [{id, stageId, date:'YYYY-MM-DD', status:'present'|'absent'|'holiday', note}]
 };
 
 // ══════════════════════════════════════════════════
@@ -33,7 +34,7 @@ function initDB() {
     const req = indexedDB.open(DB_NAME, DB_VER);
     req.onupgradeneeded = e => {
       const db = e.target.result;
-      ['stages', 'subjects'].forEach(s => {
+      ['stages', 'subjects', 'attendance'].forEach(s => {
         if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' });
       });
     };
@@ -70,8 +71,9 @@ function dbDelete(store, id) {
 }
 
 async function loadAll() {
-  state.stages   = await dbGetAll('stages');
-  state.subjects = await dbGetAll('subjects');
+  state.stages     = await dbGetAll('stages');
+  state.subjects   = await dbGetAll('subjects');
+  state.attendance = await dbGetAll('attendance');
   state.stages.forEach((s, i) => { if (s.order === undefined || s.order === null) s.order = i; });
   sortStages();
 }

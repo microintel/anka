@@ -27,6 +27,7 @@
       <!-- filled by JS: dashboard / dynamic stages / charts / + stage -->
     </nav>
     <div class="nav-actions">
+      <button class="btn btn-ghost btn-sm" onclick="alert('Attendance feature is still in development, it will be solved soon.')"><i class="bi bi-calendar-check"></i> Attendance</button>
       <button class="btn btn-ghost btn-sm" onclick="showSection('account')"><i class="bi bi-person-circle"></i> Profile</button>
       <button class="btn btn-ghost btn-sm" onclick="exportJSON()"><i class="bi bi-download"></i> Export</button>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importFile').click()"><i class="bi bi-upload"></i> Import</button>
@@ -337,6 +338,9 @@
     </button>
     <button class="bottom-nav-item" data-tab="stages" onclick="showSection('stages')">
       <span class="bn-icon"><i class="bi bi-journal-bookmark"></i></span><span>Stage</span>
+    </button>
+    <button class="bottom-nav-item" data-tab="attendance" onclick="alert('Attendance feature is still in development, it will be solved soon.')">
+      <span class="bn-icon"><i class="bi bi-calendar-check"></i></span><span>Attend</span>
     </button>
     <button class="bottom-nav-item" data-tab="account" onclick="showSection('account')">
       <span class="bn-icon"><i class="bi bi-person-circle"></i></span><span>Account</span>

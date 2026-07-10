@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Attendance · Anka</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="style.css">
+<style>
+  /* small page-specific additions, kept minimal & in the same visual language */
+  .att-seg { display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+  .att-seg-btn {
+    flex:1; min-width:110px; display:flex; align-items:center; justify-content:center; gap:0.4rem;
+    padding:0.75rem 0.5rem; border-radius:var(--radius); border:1px solid var(--border-strong);
+    background:var(--bg-card); color:var(--text-secondary); font-size:0.85rem; font-weight:600;
+    cursor:pointer; transition:all 0.15s;
+  }
+  .att-seg-btn:hover { border-color:var(--accent); color:var(--text-primary); }
+  .att-seg-btn.active-present { background:var(--accent2-glow); border-color:var(--accent2); color:var(--accent2-light); }
+  .att-seg-btn.active-absent  { background:rgba(255,92,108,0.12); border-color:var(--red); color:var(--red); }
+  .att-seg-btn.active-holiday { background:var(--accent3-glow); border-color:var(--accent3); color:var(--accent3-light); }
+  .att-status-dot { display:inline-block; width:0.55rem; height:0.55rem; border-radius:50%; margin-right:0.4rem; }
+  .att-dot-present { background:var(--accent2); }
+  .att-dot-absent  { background:var(--red); }
+  .att-dot-holiday { background:var(--accent3); }
+  .att-history-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.85rem; flex-wrap:wrap; gap:0.5rem; }
+  .att-back { display:flex; align-items:center; gap:0.4rem; cursor:pointer; color:var(--text-secondary); font-size:0.8rem; }
+  .att-back:hover { color:var(--accent); }
+  @media (max-width:600px){ .att-seg-btn{ min-width:0; } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="masthead">
+    <div class="masthead-left">
+      <div>
+        <div class="logo-mark" onclick="location.href='index.html'">Anka</div>
+        <div class="logo-sub"></div>
+      </div>
+    </div>
+    <nav class="nav-tabs">
+      <span class="att-back" onclick="location.href='index.html'" style="padding:0 1rem;"><i class="bi bi-arrow-left"></i> Back to Anka</span>
+    </nav>
+    <div class="nav-actions"></div>
+  </header>
+
+  <main class="main">
+    <div class="dash-header">
+      <div class="dash-header-top">
+        <div class="dash-title">Daily <span>Attendance.</span></div>
+      </div>
+      <div class="deco-line"></div>
+      <div class="dash-subtitle">Pick a stage and a day, mark it — that's it</div>
+    </div>
+
+    <!-- Stage + Date picker -->
+    <div class="chart-card" style="margin-bottom:1.25rem;">
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label"><i class="bi bi-journal-bookmark"></i> Stage</label>
+          <select class="form-input" id="attStageSelect" onchange="onStageChange()"></select>
+        </div>
+        <div class="form-field">
+          <label class="form-label"><i class="bi bi-calendar3"></i> Date</label>
+          <input type="date" class="form-input" id="attDateInput" onchange="renderAttendance()">
+        </div>
+      </div>
+
+      <div class="att-seg" id="attStatusButtons">
+        <button class="att-seg-btn" id="btnPresent" onclick="setStatus('present')"><i class="bi bi-check-circle-fill"></i> Present</button>
+        <button class="att-seg-btn" id="btnAbsent" onclick="setStatus('absent')"><i class="bi bi-x-circle-fill"></i> Absent</button>
+        <button class="att-seg-btn" id="btnHoliday" onclick="setStatus('holiday')"><i class="bi bi-cup-hot-fill"></i> Holiday</button>
+      </div>
+
+      <button class="btn btn-ghost btn-sm" id="btnClearDay" onclick="clearStatus()"><i class="bi bi-eraser-fill"></i> Clear this day</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="dash-stats" id="attStats" style="grid-template-columns:repeat(4,1fr);"></div>
+
+    <!-- History -->
+    <div class="chart-card">
+      <div class="att-history-head">
+        <div class="chart-title" style="margin:0;">History</div>
+        <button class="btn btn-danger btn-sm" onclick="clearAllForStage()"><i class="bi bi-trash3-fill"></i> Clear All (this stage)</button>
+      </div>
+      <div id="attHistoryWrap"></div>
+    </div>
+  </main>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="state.js"></script>
+<script src="toast.js"></script>
+
+<script>
+function escHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[c]));
+}
+function stageLabelSafe(stage) {
+  if (!stage) return '';
+  return stage.label || (STAGE_TYPES[stage.type] || STAGE_TYPES.custom).label;
+}
+function todayStr() {
+  const d = new Date();
+  const tz = d.getTimezoneOffset() * 60000;
+  return new Date(d - tz).toISOString().slice(0, 10);
+}
+
+let currentStageId = null;
+
+function renderStageOptions() {
+  const sel = document.getElementById('attStageSelect');
+  if (!state.stages.length) {
+    sel.innerHTML = `<option value="">No stages yet</option>`;
+    return;
+  }
+  sel.innerHTML = state.stages.map(s =>
+    `<option value="${s.id}">${escHtml(stageLabelSafe(s))}</option>`
+  ).join('');
+  if (!currentStageId || !state.stages.some(s => s.id === currentStageId)) {
+    currentStageId = state.stages[0].id;
+  }
+  sel.value = currentStageId;
+}
+
+function onStageChange() {
+  currentStageId = document.getElementById('attStageSelect').value;
+  renderAttendance();
+}
+
+function recordFor(stageId, date) {
+  return state.attendance.find(a => a.stageId === stageId && a.date === date);
+}
+
+async function setStatus(status) {
+  const date = document.getElementById('attDateInput').value;
+  if (!currentStageId || !date) return;
+  let rec = recordFor(currentStageId, date);
+  if (!rec) {
+    rec = { id: `${currentStageId}_${date}`, stageId: currentStageId, date, status };
+    state.attendance.push(rec);
+  } else {
+    rec.status = status;
+  }
+  await dbPut('attendance', rec);
+  toast(`✓ Marked ${status[0].toUpperCase() + status.slice(1)}`);
+  renderAttendance();
+}
+
+async function clearStatus() {
+  const date = document.getElementById('attDateInput').value;
+  const rec = recordFor(currentStageId, date);
+  if (!rec) return;
+  state.attendance = state.attendance.filter(a => a.id !== rec.id);
+  await dbDelete('attendance', rec.id);
+  toast('Cleared');
+  renderAttendance();
+}
+
+async function deleteRecord(id) {
+  state.attendance = state.attendance.filter(a => a.id !== id);
+  await dbDelete('attendance', id);
+  toast('Deleted');
+  renderAttendance();
+}
+
+function clearAllForStage() {
+  if (!currentStageId) return;
+  const recs = state.attendance.filter(a => a.stageId === currentStageId);
+  if (!recs.length) { toast('Nothing to clear'); return; }
+  if (!confirm(`Clear all ${recs.length} attendance record(s) for this stage? This cannot be undone.`)) return;
+  Promise.all(recs.map(r => dbDelete('attendance', r.id))).then(() => {
+    state.attendance = state.attendance.filter(a => a.stageId !== currentStageId);
+    toast('✓ All records cleared for this stage');
+    renderAttendance();
+  });
+}
+
+function renderAttendance() {
+  const sel = document.getElementById('attStageSelect');
+  const dateInput = document.getElementById('attDateInput');
+  const wrap = document.getElementById('attHistoryWrap');
+  const statsWrap = document.getElementById('attStats');
+  const btnClear = document.getElementById('btnClearDay');
+
+  if (!state.stages.length) {
+    document.getElementById('attStatusButtons').style.display = 'none';
+    btnClear.style.display = 'none';
+    statsWrap.innerHTML = '';
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="bi bi-journal-bookmark"></i></div><div class="empty-state-text">No stages yet</div><div class="empty-state-sub">Add a stage in Anka first, then come back here to mark attendance</div></div>`;
+    return;
+  }
+  document.getElementById('attStatusButtons').style.display = '';
+  btnClear.style.display = '';
+
+  const date = dateInput.value || todayStr();
+  dateInput.value = date;
+
+  // highlight active status button
+  ['present','absent','holiday'].forEach(s => {
+    document.getElementById('btn' + s[0].toUpperCase() + s.slice(1))
+      .classList.remove('active-present','active-absent','active-holiday');
+  });
+  const rec = recordFor(currentStageId, date);
+  if (rec) {
+    document.getElementById('btn' + rec.status[0].toUpperCase() + rec.status.slice(1))
+      .classList.add('active-' + rec.status);
+  }
+
+  // stats for this stage
+  const stageRecs = state.attendance.filter(a => a.stageId === currentStageId);
+  const present = stageRecs.filter(a => a.status === 'present').length;
+  const absent  = stageRecs.filter(a => a.status === 'absent').length;
+  const holiday = stageRecs.filter(a => a.status === 'holiday').length;
+  const markedForPct = present + absent; // holidays excluded from %
+  const attPct = markedForPct ? Math.round((present / markedForPct) * 1000) / 10 : 0;
+
+  statsWrap.innerHTML = `
+    <div class="stat-cell">
+      <div class="stat-label">Present</div>
+      <div class="stat-value" style="color:var(--accent2-light);">${present}</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Absent</div>
+      <div class="stat-value" style="color:var(--red);">${absent}</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Holidays</div>
+      <div class="stat-value" style="color:var(--accent3-light);">${holiday}</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Attendance %</div>
+      <div class="stat-value">${attPct}%</div>
+    </div>`;
+
+  // history table, most recent first
+  const sorted = [...stageRecs].sort((a, b) => b.date.localeCompare(a.date));
+  if (!sorted.length) {
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i class="bi bi-calendar-check"></i></div><div class="empty-state-text">No days marked yet</div><div class="empty-state-sub">Pick a date above and mark Present, Absent or Holiday</div></div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <table class="subject-table">
+      <thead><tr><th>Date</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        ${sorted.map(r => `
+          <tr>
+            <td>${escHtml(r.date)}</td>
+            <td><span class="att-status-dot att-dot-${r.status}"></span>${r.status[0].toUpperCase() + r.status.slice(1)}</td>
+            <td class="action-cell">
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('attDateInput').value='${r.date}';renderAttendance();window.scrollTo({top:0,behavior:'smooth'});" title="Edit"><i class="bi bi-pencil-fill"></i></button>
+              <button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')" title="Delete"><i class="bi bi-trash3-fill"></i></button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+(async function boot() {
+  document.body.classList.toggle('theme-light', localStorage.getItem('theme') === 'light');
+  document.getElementById('attDateInput').value = todayStr();
+  await initDB();
+  await loadAll();
+  renderStageOptions();
+  renderAttendance();
+})();
+</script>
+</body>
+</html>
